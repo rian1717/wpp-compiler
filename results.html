@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W++ Token Analyzer — Results</title>
+<meta name="description" content="W++ Token Analysis Statistical Report">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="nav-logo" onclick="location.href='index.html'">
+    <div class="nav-logo-icon">W+</div>
+    <span>W++ Analyzer</span>
+  </div>
+  <div class="nav-breadcrumb">
+    <a href="index.html">Home</a>
+    <span class="arrow">→</span>
+    <a href="upload.html">Upload</a>
+    <span class="arrow">→</span>
+    <a href="history.html">History</a>
+    <span class="arrow">→</span>
+    <span class="active">Results</span>
+  </div>
+  <div class="nav-right">
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
+  </div>
+</nav>
+
+<!-- Top bar -->
+<div class="results-topbar">
+  <span class="file-name-badge">📄 <span id="topFilename">source.wpp</span></span>
+  <div class="topbar-actions">
+    <a href="upload.html" class="btn btn-secondary btn-sm">🔄 Change File</a>
+    <a href="history.html" class="btn btn-secondary btn-sm">📋 History</a>
+    <button class="btn btn-secondary btn-sm" onclick="downloadReport()">⬇ Download</button>
+    <button class="btn btn-secondary btn-sm" onclick="copyReport()">📋 Copy</button>
+    <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨 Print</button>
+  </div>
+</div>
+
+<!-- Collapsible re-analyze panel -->
+<div style="max-width:1100px;margin:12px auto;padding:0 24px;">
+  <div class="collapsible-head" onclick="this.classList.toggle('open');document.getElementById('reanalyzeBody').classList.toggle('open');">
+    📂 Change Input / Re-analyze <span class="chevron">▼</span>
+  </div>
+  <div class="collapsible-body" id="reanalyzeBody">
+    <div class="collapsible-inner">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:250px;">
+          <div class="upload-zone" id="reDropZone" style="padding:16px;">
+            <input type="file" id="reFileInput" accept=".wpp,.txt">
+            <div style="font-size:20px;margin-bottom:4px;">📂</div>
+            <div class="upload-text" style="font-size:11px;">Drop <span>.wpp</span> file or click</div>
+          </div>
+        </div>
+        <div style="flex:2;min-width:300px;">
+          <textarea id="reCodeInput" class="code-area" style="min-height:120px;" placeholder="Paste new W++ code here..."></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-blue btn-sm" onclick="reSample()">📋 Sample</button>
+        <button class="btn btn-primary btn-sm" onclick="reAnalyze()">▶ Re-Analyze</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main content -->
+<div style="max-width:1100px;margin:0 auto;padding:0 24px 60px;" id="reportRoot">
+
+  <!-- Stat cards -->
+  <div class="stat-cards" id="statCards" style="margin-top:16px;"></div>
+
+  <!-- Section nav -->
+  <div class="sec-nav" id="secNav">
+    <button class="sec-link active" onclick="showMainTab(1)">1. Token Summary</button>
+    <button class="sec-link" onclick="showMainTab(2)">2. Line Distribution</button>
+    <button class="sec-link" onclick="showMainTab(3)">3. Identifiers</button>
+    <button class="sec-link" onclick="showMainTab(4)">4. Literals</button>
+    <button class="sec-link" onclick="showMainTab(5)">5. Overall Summary</button>
+    <button class="sec-link" onclick="showMainTab(6)">6. Category Breakdown</button>
+  </div>
+
+  <div id="sec1"></div>
+  <div id="sec2" style="display:none;"></div>
+  <div id="sec3" style="display:none;"></div>
+  <div id="sec4" style="display:none;"></div>
+  <div id="sec5" style="display:none;"></div>
+  <div id="sec6" style="display:none;"></div>
+</div>
+
+<footer class="footer">Compiler Construction CS-310 | Spring 2026</footer>
+
+<script src="tokenizer.js"></script>
+<script>
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let stats, source, fname;
+
+function loadFromStorage() {
+  stats = JSON.parse(localStorage.getItem('wpp_stats'));
+  source = localStorage.getItem('wpp_source');
+  fname = localStorage.getItem('wpp_filename') || 'source.wpp';
+  if (!stats || !source) { window.location.href = 'upload.html'; return false; }
+  return true;
+}
+
+function refreshStats() {
+  const tokens = tokenize(source);
+  stats = generateAllStats(tokens, source, fname);
+  saveToHistory(fname, source, stats);
+  localStorage.setItem('wpp_stats', JSON.stringify(stats));
+  localStorage.setItem('wpp_tokens', JSON.stringify(tokens));
+}
+
+function refreshSection(id, renderFn) {
+  refreshStats();
+  renderFn();
+  const el = document.getElementById(id);
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+}
+
+// ═══════════════════════════════════════════
+//  STAT CARDS
+// ═══════════════════════════════════════════
+function renderStatCards() {
+  document.getElementById('statCards').innerHTML = `
+    <div class="stat-card hl"><div class="label">Total Tokens</div><div class="value">${stats.totalTokens}</div><div class="sublabel">non-comment</div></div>
+    <div class="stat-card"><div class="label">Total Lines</div><div class="value">${stats.totalLines}</div></div>
+    <div class="stat-card"><div class="label">Lines with Code</div><div class="value">${stats.linesWithCode}</div><div class="sublabel">${stats.emptyIgnored} empty/ignored</div></div>
+    <div class="stat-card"><div class="label">Unique Token Types</div><div class="value">${stats.uniqueTypes}</div></div>`;
+}
+
+// ═══════════════════════════════════════════
+//  SECTION 1: TOKEN TYPE SUMMARY
+// ═══════════════════════════════════════════
+function renderSec1() {
+  const s = stats;
+  const catOrder = ['KEYWORD','IDENTIFIER','LITERAL','OPERATOR','SEPARATOR'];
+  const grouped = {};
+  catOrder.forEach(c => grouped[c] = []);
+  s.typeArr.forEach(t => { if (grouped[t.category]) grouped[t.category].push(t); });
+
+  let rows = '';
+  let searchFilter = '';
+
+  for (const cat of catOrder) {
+    for (const t of grouped[cat]) {
+      const pct = ((t.count / s.totalTokens) * 100).toFixed(2);
+      let linesStr = t.lines.join(', ');
+      let linesHtml = '';
+      if (t.lines.length > 10) {
+        const shown = t.lines.slice(0, 10).join(', ');
+        const rest = t.lines.slice(10).join(', ');
+        linesHtml = `${shown} <span class="lines-expand" onclick="this.previousSibling.textContent='${escapeHtml(linesStr)}';this.remove();">...+${t.lines.length - 10} more</span>`;
+      } else {
+        linesHtml = escapeHtml(linesStr);
+      }
+      rows += `<tr data-type="${t.type.toLowerCase()}">
+        <td><span class="cat-badge cat-${cat}">${cat}</span></td>
+        <td class="tt" style="font-size:11px;color:var(--text-bright);">${t.type}<span class="tt-content">Lines: ${escapeHtml(linesStr)}</span></td>
+        <td class="qty-cell">${t.count}</td>
+        <td><div class="pct-bar"><div class="pct-bar-bg"><div class="pct-bar-fill" style="width:${Math.min(pct * 3, 100)}%"></div></div><span style="font-size:11px;color:var(--text-dim);">${pct}%</span></div></td>
+        <td class="lines-cell">${linesHtml}</td></tr>`;
+    }
+  }
+  // Comment + Whitespace rows
+  rows += `<tr data-type="comment"><td><span class="cat-badge cat-COMMENT">COMMENT</span></td><td style="font-size:11px;color:var(--text-bright);">COMMENT</td><td class="qty-cell">0</td><td><span class="ignored-cell">(ignored)</span></td><td class="ignored-cell">(ignored)</td></tr>`;
+  rows += `<tr data-type="whitespace"><td><span class="cat-badge cat-COMMENT">WHITESPACE</span></td><td style="font-size:11px;color:var(--text-bright);">WHITESPACE</td><td class="qty-cell">0</td><td><span class="ignored-cell">(ignored)</span></td><td class="ignored-cell">(ignored)</td></tr>`;
+
+  document.getElementById('sec1').innerHTML = `
+    <div class="section visible" id="section1">
+      <div class="section-head">
+        <div class="section-title">1. Token Type Summary</div>
+        <div class="section-meta">
+          <input class="search-input" placeholder="Filter by token type..." id="sec1Search" oninput="filterSec1(this.value)">
+          <span class="section-time">Last analyzed: ${s.analyzedAt}</span>
+          <button class="btn-refresh" onclick="refreshSection('section1',renderSec1)">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="section-desc">Complete breakdown of every token type found in the source code</div>
+      <table class="data-table" id="sec1Table">
+        <thead><tr><th>Category</th><th>Token Type</th><th style="text-align:right;">Qty</th><th>Percentage</th><th>Lines</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function filterSec1(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('#sec1Table tbody tr').forEach(tr => {
+    tr.style.display = tr.getAttribute('data-type').includes(q) ? '' : 'none';
+  });
+}
+
+// ═══════════════════════════════════════════
+//  SECTION 2: LINE-WISE DISTRIBUTION
+// ═══════════════════════════════════════════
+function renderSec2() {
+  const s = stats;
+  const entries = Object.entries(s.lineMap).sort((a, b) => +a[0] - +b[0]);
+  const maxC = Math.max(...entries.map(e => e[1]), 1);
+
+  let tableRows = '';
+  entries.forEach(([ln, cnt]) => {
+    const w = Math.round((cnt / maxC) * 100);
+    tableRows += `<tr><td style="color:var(--text-dim);font-size:11px;">Line ${ln}</td><td style="font-weight:600;">${cnt}</td><td><div style="height:6px;background:var(--border);border-radius:3px;max-width:200px;"><div style="width:${w}%;height:100%;background:var(--blue);border-radius:3px;opacity:.7;"></div></div></td></tr>`;
+  });
+
+  let bars = '';
+  entries.forEach(([ln, cnt]) => {
+    const h = Math.round((cnt / maxC) * 140);
+    bars += `<div class="chart-bar" style="height:${h}px;" title="Line ${ln}: ${cnt} tokens"><span class="chart-val">${cnt}</span><span class="chart-label">${ln}</span></div>`;
+  });
+
+  document.getElementById('sec2').innerHTML = `
+    <div class="section visible" id="section2">
+      <div class="section-head">
+        <div class="section-title">2. Line-wise Token Distribution</div>
+        <div class="section-meta">
+          <span class="section-time">Last analyzed: ${s.analyzedAt}</span>
+          <button class="btn-refresh" onclick="refreshSection('section2',renderSec2)">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="section-desc">Number of tokens found on each line of the source code</div>
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('sec2',0,this)">Table</button>
+        <button class="tab-btn" onclick="switchTab('sec2',1,this)">Chart</button>
+      </div>
+      <div class="tab-panel active" id="sec2-tab0">
+        <table class="data-table"><thead><tr><th>Line #</th><th>Tokens</th><th>Distribution</th></tr></thead><tbody>${tableRows}</tbody></table>
+      </div>
+      <div class="tab-panel" id="sec2-tab1">
+        <div class="card" style="overflow-x:auto;">
+          <div class="chart-wrap">${bars}</div>
+          <div style="text-align:center;font-size:10px;color:var(--text-dim);margin-top:4px;">Line Numbers</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
+//  SECTION 3: IDENTIFIERS
+// ═══════════════════════════════════════════
+function renderSec3() {
+  const s = stats;
+  let rows = '';
+  s.identMap.forEach(id => {
+    rows += `<tr><td style="color:var(--blue);font-weight:600;">${escapeHtml(id.name)}</td><td class="qty-cell">${id.count}</td><td class="lines-cell">${id.lines.join(', ')}</td></tr>`;
+  });
+
+  document.getElementById('sec3').innerHTML = `
+    <div class="section visible" id="section3">
+      <div class="section-head">
+        <div class="section-title">3. Identifier Statistics</div>
+        <div class="section-meta">
+          <span class="cat-badge cat-IDENTIFIER">Total Unique: ${s.identMap.length}</span>
+          <span class="section-time">Last analyzed: ${s.analyzedAt}</span>
+          <button class="btn-refresh" onclick="refreshSection('section3',renderSec3)">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="section-desc">All unique variable and function names found in the source code</div>
+      ${s.identMap.length === 0 ? '<p style="color:var(--text-dim);font-size:12px;">No identifiers found.</p>' :
+      `<table class="data-table"><thead><tr><th>Identifier</th><th style="text-align:right;">Frequency</th><th>Lines</th></tr></thead><tbody>${rows}</tbody></table>`}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
+//  SECTION 4: LITERALS
+// ═══════════════════════════════════════════
+function renderSec4() {
+  const s = stats;
+  const typeOrder = ['INTEGER','FLOAT','CHAR','STRING'];
+  const sorted = [...s.litMap].sort((a, b) => {
+    const ai = typeOrder.indexOf(a.type), bi = typeOrder.indexOf(b.type);
+    if (ai !== bi) return ai - bi;
+    return b.count - a.count;
+  });
+
+  const typeColors = { INTEGER: 'var(--yellow)', FLOAT: 'var(--orange)', STRING: 'var(--green)', CHAR: 'var(--purple)' };
+  let rows = '';
+  sorted.forEach(lit => {
+    const c = typeColors[lit.type] || 'var(--text)';
+    rows += `<tr><td style="color:var(--text-bright);font-weight:500;">${escapeHtml(lit.value)}</td><td><span class="cat-badge" style="background:${c}22;color:${c};border:1px solid ${c}55;">${lit.type}</span></td><td class="qty-cell">${lit.count}</td><td class="lines-cell">${lit.lines.join(', ')}</td></tr>`;
+  });
+
+  document.getElementById('sec4').innerHTML = `
+    <div class="section visible" id="section4">
+      <div class="section-head">
+        <div class="section-title">4. Literal Statistics</div>
+        <div class="section-meta">
+          <span class="section-time">Last analyzed: ${s.analyzedAt}</span>
+          <button class="btn-refresh" onclick="refreshSection('section4',renderSec4)">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="section-desc">All literal values (numbers, strings, characters) found in the source code</div>
+      ${sorted.length === 0 ? '<p style="color:var(--text-dim);font-size:12px;">No literals found.</p>' :
+      `<table class="data-table"><thead><tr><th>Literal Value</th><th>Type</th><th style="text-align:right;">Frequency</th><th>Lines</th></tr></thead><tbody>${rows}</tbody></table>`}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
+//  SECTION 5: OVERALL SUMMARY
+// ═══════════════════════════════════════════
+function renderSec5() {
+  const s = stats;
+  const mfPct = s.totalTokens ? ((s.mostFreq.count / s.totalTokens) * 100).toFixed(2) : '0.00';
+  const lfPct = s.totalTokens ? ((s.leastFreq.count / s.totalTokens) * 100).toFixed(2) : '0.00';
+
+  document.getElementById('sec5').innerHTML = `
+    <div class="section visible" id="section5">
+      <div class="section-head">
+        <div class="section-title">5. Token Summary Statistics</div>
+        <div class="section-meta">
+          <span class="section-time">Last analyzed: ${s.analyzedAt}</span>
+          <button class="btn-refresh" onclick="refreshSection('section5',renderSec5)">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="section-desc">High-level statistical overview of the entire source file</div>
+      <div class="summary-box">
+        <div>
+          <div class="summary-row"><span class="summary-key">Total Tokens</span><span class="summary-val" style="color:var(--green);">${s.totalTokens}</span></div>
+          <div class="summary-row"><span class="summary-key">Unique Token Types</span><span class="summary-val">${s.uniqueTypes}</span></div>
+          <div class="summary-row"><span class="summary-key">Total Lines</span><span class="summary-val">${s.totalLines}</span></div>
+          <div class="summary-row"><span class="summary-key">Lines with Code</span><span class="summary-val">${s.linesWithCode}</span></div>
+          <div class="summary-row"><span class="summary-key">Empty / Ignored Lines</span><span class="summary-val">${s.emptyIgnored}</span></div>
+        </div>
+        <div>
+          <div class="summary-row"><span class="summary-key">Most Frequent Token</span><span class="summary-val" style="color:var(--green);font-size:10px;">${s.mostFreq.type} (${s.mostFreq.count}, ${mfPct}%)</span></div>
+          <div class="summary-row"><span class="summary-key">Least Frequent Token</span><span class="summary-val" style="font-size:10px;">${s.leastFreq.type} (${s.leastFreq.count}, ${lfPct}%)</span></div>
+          <div class="summary-row"><span class="summary-key">Average Tokens/Line</span><span class="summary-val" style="color:var(--blue);">${s.avgPerLine}</span></div>
+          <div class="summary-row"><span class="summary-key">Max Tokens on a Line</span><span class="summary-val" style="color:var(--yellow);">${s.maxLine.count} (Line ${s.maxLine.line})</span></div>
+          <div class="summary-row"><span class="summary-key">Min Tokens on a Line</span><span class="summary-val">${s.minLine.count} (Line ${s.minLine.line})</span></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
+//  SECTION 6: CATEGORY BREAKDOWN
+// ═══════════════════════════════════════════
+function renderSec6() {
+  const s = stats;
+  const catColors = { KEYWORD:'#ce93d8', IDENTIFIER:'#40c4ff', LITERAL:'#ffd740', OPERATOR:'#ff5252', SEPARATOR:'#00e676', COMMENT:'#5a7a94' };
+  const allCats = ['KEYWORD','IDENTIFIER','LITERAL','OPERATOR','SEPARATOR','COMMENT'];
+  const maxCat = Math.max(...Object.values(s.catMap), 1);
+
+  let tableRows = '';
+  let bars = '';
+  allCats.forEach(cat => {
+    const cnt = s.catMap[cat] || 0;
+    const pct = s.totalTokens ? ((cnt / s.totalTokens) * 100).toFixed(2) : '0.00';
+    const barW = Math.round((cnt / maxCat) * 100);
+    const color = catColors[cat];
+    tableRows += `<tr><td><span class="cat-badge cat-${cat}">${cat}</span></td><td class="qty-cell">${cnt}</td><td>${pct}%</td></tr>`;
+    bars += `<div class="cat-row"><span class="cat-badge cat-${cat} cat-row-name">${cat}</span><div class="cat-row-bar-wrap"><div class="cat-row-bar" style="width:${barW}%;background:${color};opacity:.8;"></div></div><span class="cat-row-stats">${cnt} &nbsp;|&nbsp; ${pct}%</span></div>`;
+  });
+
+  document.getElementById('sec6').innerHTML = `
+    <div class="section visible" id="section6">
+      <div class="section-head">
+        <div class="section-title">6. Token Category Breakdown</div>
+        <div class="section-meta">
+          <span class="section-time">Last analyzed: ${s.analyzedAt}</span>
+          <button class="btn-refresh" onclick="refreshSection('section6',renderSec6)">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="section-desc">Proportional breakdown of token categories across the entire file</div>
+      <table class="data-table" style="margin-bottom:16px;"><thead><tr><th>Category</th><th style="text-align:right;">Total</th><th>Percentage</th></tr></thead><tbody>${tableRows}</tbody></table>
+      <div class="cat-breakdown">${bars}</div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════
+//  TAB SWITCHING
+// ═══════════════════════════════════════════
+function switchTab(prefix, idx, btn) {
+  btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll(`[id^="${prefix}-tab"]`).forEach(p => p.classList.remove('active'));
+  document.getElementById(`${prefix}-tab${idx}`).classList.add('active');
+}
+
+// ═══════════════════════════════════════════
+//  MAIN TAB SWITCHING
+// ═══════════════════════════════════════════
+function showMainTab(idx) {
+  document.querySelectorAll('#secNav .sec-link').forEach((b, i) => {
+    if (i === (idx - 1)) b.classList.add('active');
+    else b.classList.remove('active');
+  });
+  for (let i = 1; i <= 6; i++) {
+    const el = document.getElementById('sec' + i);
+    if (el) el.style.display = (i === idx) ? 'block' : 'none';
+  }
+}
+
+// ═══════════════════════════════════════════
+//  DOWNLOAD & COPY
+// ═══════════════════════════════════════════
+function downloadReport() {
+  const raw = buildRawReport(stats);
+  const blob = new Blob([raw], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'wpp_report.txt';
+  a.click();
+}
+
+function copyReport() {
+  const raw = buildRawReport(stats);
+  navigator.clipboard.writeText(raw).then(() => {
+    const btn = event.target.closest('button');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓ Copied!';
+    setTimeout(() => btn.innerHTML = orig, 2000);
+  });
+}
+
+// ═══════════════════════════════════════════
+//  RE-ANALYZE
+// ═══════════════════════════════════════════
+let reFilename = '';
+
+document.addEventListener('DOMContentLoaded', () => {
+  const reFileInput = document.getElementById('reFileInput');
+  const reDZ = document.getElementById('reDropZone');
+
+  if (reFileInput) {
+    reFileInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => { document.getElementById('reCodeInput').value = ev.target.result; reFilename = file.name; };
+      reader.readAsText(file);
+    });
+  }
+
+  if (reDZ) {
+    reDZ.addEventListener('dragover', e => { e.preventDefault(); reDZ.classList.add('drag-over'); });
+    reDZ.addEventListener('dragleave', () => reDZ.classList.remove('drag-over'));
+    reDZ.addEventListener('drop', e => {
+      e.preventDefault(); reDZ.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => { document.getElementById('reCodeInput').value = ev.target.result; reFilename = file.name; };
+      reader.readAsText(file);
+    });
+  }
+});
+
+function reSample() {
+  document.getElementById('reCodeInput').value = SAMPLE_PROGRAM;
+  reFilename = 'test_program.wpp';
+}
+
+function reAnalyze() {
+  const code = document.getElementById('reCodeInput').value.trim();
+  if (!code) return;
+  source = code;
+  fname = reFilename || 'source.wpp';
+  localStorage.setItem('wpp_source', source);
+  localStorage.setItem('wpp_filename', fname);
+  refreshStats();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════
+//  RENDER ALL
+// ═══════════════════════════════════════════
+function renderAll() {
+  document.getElementById('topFilename').textContent = fname;
+  renderStatCards();
+  renderSec1();
+  renderSec2();
+  renderSec3();
+  renderSec4();
+  renderSec5();
+  renderSec6();
+}
+
+// ═══════════════════════════════════════════
+//  OBSERVERS (Fade-in only)
+// ═══════════════════════════════════════════
+function setupObservers() {
+  const sections = document.querySelectorAll('.section');
+  const fadeObs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  sections.forEach(s => fadeObs.observe(s));
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+if (loadFromStorage()) {
+  renderAll();
+  setTimeout(setupObservers, 200);
+}
+
+// ─── Theme toggle ───
+const toggle = document.getElementById('themeToggle');
+if (localStorage.getItem('wpp_theme') === 'light') { document.body.classList.add('light'); toggle.textContent = '☀'; }
+toggle.addEventListener('click', () => {
+  document.body.classList.toggle('light');
+  const isLight = document.body.classList.contains('light');
+  toggle.textContent = isLight ? '☀' : '🌙';
+  localStorage.setItem('wpp_theme', isLight ? 'light' : 'dark');
+});
+
+// ─── Keyboard shortcut ───
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); reAnalyze(); }
+});
+</script>
+</body>
+</html>

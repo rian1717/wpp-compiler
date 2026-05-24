@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W++ Compiler Workspace — CS-310</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="nav-logo" onclick="location.href='index.html'">
+    <div class="nav-logo-icon">W+</div>
+    <span class="nav-title-text">W++ Compiler Workspace</span>
+  </div>
+  <div class="nav-breadcrumb">
+    <a href="index.html">Home</a>
+    <span class="arrow">→</span>
+    <a href="index.html" class="active">Workspace</a>
+  </div>
+  <div class="nav-controls">
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
+  </div>
+</nav>
+
+<div class="workspace-container">
+  
+  <!-- ─── LEFT PANEL: SOURCE CODE EDITOR ─── -->
+  <aside class="left-pane">
+    <div class="panel-header">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+      <h2 style="margin-left: 6px;">Source Editor</h2>
+      
+      <div style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
+        <span style="font-size: 10px; color: var(--text-dim);">PRESETS:</span>
+        <select class="preset-select" id="presetSelect" onchange="loadPreset(this.value)">
+          <option value="success">1. Valid W++ Code (Success)</option>
+          <option value="syntax">2. Multiple Syntax Errors</option>
+          <option value="semantic">3. Semantic Scoping & Types</option>
+          <option value="optimize">4. Constant Folding & Dead Code</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="editor-container">
+      <div class="editor-line-numbers" id="lineNumbers">1</div>
+      <div class="editor-workspace-wrap">
+        <div class="editor-highlight" id="editorHighlight"></div>
+        <textarea class="editor-textarea" id="editorTextarea" placeholder="// Paste W++ code here or select a preset preset...
+int main() {
+    int x = 10;
+    return x;
+}"></textarea>
+      </div>
+    </div>
+    
+    <div class="action-bar">
+      <button class="btn btn-secondary" onclick="clearEditor()">🧹 Clear</button>
+      <button class="btn btn-preset" onclick="loadSamplePreset()">📋 Load Selected Preset</button>
+      <button class="btn btn-run" onclick="runCompiler()" style="margin-left: auto;">▶ Compile & Run</button>
+    </div>
+  </aside>
+  
+  <!-- ─── RIGHT PANEL: COMPILER PHASES DIAGNOSTICS ─── -->
+  <main class="right-pane">
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tabBtn-console" onclick="switchTab('console')">Console <span class="badge" id="badge-errors">0</span></button>
+      <button class="tab-btn" id="tabBtn-scanner" onclick="switchTab('scanner')">1. Scanner</button>
+      <button class="tab-btn" id="tabBtn-parser" onclick="switchTab('parser')">2. Parser (AST)</button>
+      <button class="tab-btn" id="tabBtn-semantic" onclick="switchTab('semantic')">3. Symbols & Types</button>
+      <button class="tab-btn" id="tabBtn-optimizer" onclick="switchTab('optimizer')">4. Optimizer</button>
+      <button class="tab-btn" id="tabBtn-icg" onclick="switchTab('icg')">5. TAC (ICG)</button>
+    </div>
+    
+    <!-- ── TAB: CONSOLE / ERROR DIAGNOSTICS ── -->
+    <div class="tab-content active" id="tabContent-console">
+      <div class="panel-header" style="padding:0 0 12px 0; border:none;">
+        <h2>Compiler Compilation Outputs</h2>
+      </div>
+      
+      <div id="diagnosticsConsole">
+        <div class="welcome-screen">
+          <div style="font-size: 48px;">🚀</div>
+          <h3>Ready to Compile</h3>
+          <p>Select a code template or paste W++ code on the left, then click <strong>Compile & Run</strong> to run lexical, syntax, semantic, optimization, and ICG phases.</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ── TAB: SCANNER (LEXICAL BREAKDOWN) ── -->
+    <div class="tab-content" id="tabContent-scanner">
+      <div class="panel-header" style="padding:0 0 12px 0; border:none; display:flex; justify-content:space-between; flex-direction:row;">
+        <h2>Scanned Token Streams & Categorization</h2>
+        <div class="category-filter-bar" id="categoryFilterBar">
+          <button class="filter-pill active" onclick="filterTokens('ALL')">All</button>
+          <button class="filter-pill" onclick="filterTokens('KEYWORD')">Keywords</button>
+          <button class="filter-pill" onclick="filterTokens('IDENTIFIER')">Identifiers</button>
+          <button class="filter-pill" onclick="filterTokens('LITERAL')">Literals</button>
+          <button class="filter-pill" onclick="filterTokens('OPERATOR')">Operators</button>
+          <button class="filter-pill" onclick="filterTokens('SEPARATOR')">Separators</button>
+        </div>
+      </div>
+      
+      <table class="data-table" id="tokensTable">
+        <thead>
+          <tr>
+            <th>Line:Col</th>
+            <th>Token Category</th>
+            <th>Type</th>
+            <th>Lexical Value</th>
+          </tr>
+        </thead>
+        <tbody id="tokensTableBody">
+          <tr><td colspan="4" style="text-align:center;color:var(--text-dim);">No compile data. Click Compile & Run first.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- ── TAB: PARSER (AST VISUALIZER) ── -->
+    <div class="tab-content" id="tabContent-parser">
+      <div class="panel-header" style="padding:0 0 12px 0; border:none; display:flex; justify-content:space-between; align-items:center;">
+        <h2>Concrete AST Tree Structure</h2>
+        <button class="btn btn-secondary" onclick="downloadASTJson()" style="padding:4px 8px; font-size:10px; border-color:var(--blue-color); color:var(--blue-color);">⬇ Export AST (JSON)</button>
+      </div>
+      <div id="astTreeContainer" style="font-family: var(--font-mono); font-size:11px; color: var(--text-bright); overflow: auto; max-height: calc(100vh - 160px);">
+        <p style="color:var(--text-dim); text-align:center; padding-top:40px;">No compile data. Click Compile & Run first.</p>
+      </div>
+    </div>
+    
+    <!-- ── TAB: SYMBOL TABLE & TYPE CHECKS ── -->
+    <div class="tab-content" id="tabContent-semantic">
+      <div class="panel-header" style="padding:0 0 12px 0; border:none;">
+        <h2>Scope-aware Variable Symbol Table</h2>
+      </div>
+      
+      <table class="data-table" id="symbolsTable" style="margin-bottom:24px;">
+        <thead>
+          <tr>
+            <th>Identifier</th>
+            <th>Type</th>
+            <th>Scope Level</th>
+            <th>Decl Line</th>
+            <th>Runtime Value</th>
+          </tr>
+        </thead>
+        <tbody id="symbolsTableBody">
+          <tr><td colspan="5" style="text-align:center;color:var(--text-dim);">No variables registered. Click Compile & Run.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- ── TAB: OPTIMIZER (SIDE-BY-SIDE) ── -->
+    <div class="tab-content" id="tabContent-optimizer">
+      <div class="panel-header" style="padding:0 0 12px 0; border:none;">
+        <h2>AST Optimization Visual Audit</h2>
+      </div>
+      
+      <div class="optimization-grid">
+        <div class="opt-pane">
+          <div class="opt-pane-title">Original Source Code</div>
+          <div class="opt-pane-content" id="optOriginalCode">/* Paste code and compile */</div>
+        </div>
+        <div class="opt-pane" style="border-color: rgba(0, 230, 118, 0.25);">
+          <div class="opt-pane-title" style="color: var(--primary-color);">Optimized Output (Constant Folded & Branched)</div>
+          <div class="opt-pane-content" id="optOptimizedCode" style="color: var(--text-bright);">/* Folded code */</div>
+        </div>
+      </div>
+      
+      <div class="opt-log-box" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+        <div>
+          <div class="opt-log-title">Optimization Compiler Audit Logs</div>
+          <div id="optLogsList">
+            <div style="font-size:11px;color:var(--text-dim);">No optimization events logged.</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary" onclick="downloadOptimizedCode()" style="margin-left:auto; border-color:var(--primary-color); color:var(--primary-color);">⬇ Export Optimized W++</button>
+      </div>
+    </div>
+    
+    <!-- ── TAB: THREE-ADDRESS CODE ── -->
+    <div class="tab-content" id="tabContent-icg">
+      <div class="panel-header" style="padding:0 0 12px 0; border:none;">
+        <h2>Generated Intermediate Three-Address Code</h2>
+      </div>
+      
+      <div class="tac-container" id="tacContainer">
+        <p style="color:var(--text-dim); text-align:center; padding-top:40px;">No code generated. Click Compile & Run.</p>
+      </div>
+    </div>
+    
+  </main>
+</div>
+
+<script src="tokenizer.js"></script>
+<script src="parser.js"></script>
+<script src="semantic.js"></script>
+<script src="optimizer.js"></script>
+<script src="icg.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  WORKSPACE LOGIC & STATE
+// ═══════════════════════════════════════════════════════════════
+
+const PRESETS = {
+  success: `// W++ Compiler Test - Success Program
+int main() {
+    int age = 25;
+    float temperature = 36.6;
+    double pi = 3.14159;
+    char grade = 'A';
+    string name = "Rai Rian";
+    
+    int x = 10, y = 20;
+    int sum = x + y;
+    
+    if (age >= 18) {
+        print "Adult access granted";
+        string status = "Active";
+    } else {
+        print "Minor access denied";
+    }
+    
+    int counter = 0;
+    while (counter < 5) {
+        counter = counter + 1;
+        print counter;
+    }
+    
+    for (int i = 0; i < 3; i = i + 1) {
+        print i;
+    }
+    
+    return 0;
+}`,
+  syntax: `// W++ Compiler Test - Syntax Errors
+int main() {
+    int age = 25
+    float temp = 36.6;
+    
+    if age < 18) {
+        print "Error";
+    }
+    
+    int z = 100;
+    for (int i = 0; i < 10; i = i + 1) {
+        print i;
+    }
+    
+    return 0;
+}`,
+  semantic: `// W++ Compiler Test - Semantic Errors
+int main() {
+    int x = 10;
+    int x = 20; // Error: Double declaration
+    
+    y = 50; // Error: Undeclared variable y
+    
+    int age = "25 years old"; // Error: Type mismatch (string to int)
+    int score = 95.8; // Warning: Float to int precision loss
+    
+    return 0;
+}`,
+  optimize: `// W++ Compiler Test - Optimization
+int main() {
+    int x = 5 + 3 * 2; // Constant folding: folded to 11
+    int y = 100 / 10;  // Constant folding: folded to 10
+    
+    bool flag = false;
+    
+    if (flag) {
+        print "Unreachable block"; // Dead code: Eliminated
+    } else {
+        print "Reachable branch";    // Kept (branch folded)
+    }
+    
+    while (false) {
+        print "Loop never executes"; // Dead code: Eliminated
+    }
+    
+    return 0;
+    
+    int dead_val = 500; // Dead code: Removed after return statement
+    print dead_val;
+}`
+};
+
+let currentTokens = [];
+let currentAst = null;
+let activeTokenFilter = 'ALL';
+
+const editor = document.getElementById('editorTextarea');
+const highlight = document.getElementById('editorHighlight');
+const lineNumbers = document.getElementById('lineNumbers');
+
+function updateLineNumbers() {
+  const lines = editor.value.split('\n').length;
+  let numHtml = '';
+  for (let i = 1; i <= lines; i++) {
+    numHtml += i + '<br>';
+  }
+  lineNumbers.innerHTML = numHtml;
+}
+
+// ─── EDITOR SYNTAX HIGHLIGHTER ───
+function highlightCode(code) {
+  let html = code
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+    
+  // Comments (single line)
+  html = html.replace(/(\/\/.*)/g, '<span style="color:var(--text-dim);font-style:italic;">$1</span>');
+  
+  // Comments (multi line)
+  html = html.replace(/(\/\*[\s\S]*?\*\/)/g, '<span style="color:var(--text-dim);font-style:italic;">$1</span>');
+  
+  // Strings "..."
+  html = html.replace(/(".*?")/g, '<span style="color:var(--primary-color);">$1</span>');
+  
+  // Characters '...'
+  html = html.replace(/('.*?')/g, '<span style="color:var(--primary-color);">$1</span>');
+  
+  // Keywords
+  const keywordRegex = /\b(int|float|double|char|string|bool|void|long|if|else|while|for|do|return|print|read|true|false|main)\b/g;
+  html = html.replace(keywordRegex, match => {
+    let color = 'var(--purple-color)';
+    if (['int','float','double','char','string','bool','void','long'].includes(match)) {
+      color = 'var(--blue-color)';
+    } else if (['true', 'false'].includes(match)) {
+      color = 'var(--yellow-color)';
+    }
+    return `<span style="color:${color};font-weight:bold;">${match}</span>`;
+  });
+  
+  // Numbers
+  html = html.replace(/\b([0-9]+(?:\.[0-9]+)?)\b/g, '<span style="color:var(--yellow-color);">$1</span>');
+
+  return html;
+}
+
+function syncEditorContent() {
+  highlight.innerHTML = highlightCode(editor.value) + "\n";
+  updateLineNumbers();
+}
+
+editor.addEventListener('input', syncEditorContent);
+editor.addEventListener('scroll', () => {
+  highlight.scrollTop = editor.scrollTop;
+  highlight.scrollLeft = editor.scrollLeft;
+  lineNumbers.scrollTop = editor.scrollTop;
+});
+
+function loadPreset(key) {
+  if (PRESETS[key]) {
+    editor.value = PRESETS[key];
+    syncEditorContent();
+  }
+}
+
+function loadSamplePreset() {
+  const select = document.getElementById('presetSelect');
+  loadPreset(select.value);
+}
+
+function clearEditor() {
+  editor.value = '';
+  syncEditorContent();
+}
+
+// ─── TAB SWITCHING ───
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+  
+  const targetBtn = document.getElementById('tabBtn-' + tabId);
+  const targetContent = document.getElementById('tabContent-' + tabId);
+  
+  if (targetBtn) targetBtn.classList.add('active');
+  if (targetContent) targetContent.classList.add('active');
+}
+
+// ─── COMPILER TRIGGER ───
+function runCompiler() {
+  const code = editor.value.trim();
+  if (!code) {
+    alert("Please enter some W++ source code or load a template preset.");
+    return;
+  }
+
+  // 1. SCAN
+  currentTokens = tokenize(code);
+  renderScanner(currentTokens);
+
+  // 2. PARSE (with multiple errors recovered)
+  const parser = new WPlusParser(currentTokens, code);
+  currentAst = parser.parse();
+  
+  // 3. SEMANTIC
+  const semantic = new WPlusSemantic(currentAst, code);
+  const semResult = semantic.analyze();
+
+  // Combine errors
+  const allErrors = [...parser.errors, ...semantic.errors];
+
+  // 4. OPTIMIZE
+  const optimizer = new WPlusOptimizer(currentAst);
+  const optResult = optimizer.optimize();
+  renderOptimizer(code, optResult);
+
+  // 5. THREE-ADDRESS CODE (ICG) on optimized AST
+  const icg = new WPlusICG(optResult.ast);
+  const tacInstructions = icg.generate();
+  renderTAC(tacInstructions);
+
+  // Render Diagnostics Console & Build Log
+  renderConsole(allErrors, currentTokens, parser, semantic, semResult, optResult, tacInstructions);
+
+  // Render AST Tree
+  renderAST(currentAst);
+
+  // Render Symbols Table
+  renderSymbols(semResult.symbols);
+
+  // Update tab badge errors
+  const errorBadge = document.getElementById('badge-errors');
+  errorBadge.textContent = allErrors.length;
+  if (allErrors.length > 0) {
+    errorBadge.className = "badge badge-error";
+    switchTab('console');
+  } else {
+    errorBadge.className = "badge";
+    switchTab('console'); // Go to console to show successful build terminal logs first
+  }
+}
+
+// ─── RENDERING METHODS ───
+
+function renderConsole(allErrors, tokens, parser, semantic, semResult, optResult, tacInstructions) {
+  const container = document.getElementById('diagnosticsConsole');
+  
+  // Build Terminal simulation log
+  const lexicalErrors = tokens.filter(t => t.type === 'LEXICAL_ERROR').length;
+  let logHtml = `
+    <div style="background:#020509; border:1px solid var(--border-color); border-radius:var(--radius-md); padding:16px; font-family:var(--font-mono); font-size:11px; line-height:1.6; color:#a1b0c0; margin-bottom:18px;">
+      <div style="color:var(--blue-color); font-weight:bold; margin-bottom:6px;">[W++ COMPILER COMPILATION BUILD LOG]</div>
+      <div class="build-log-line"><span class="build-log-info">[INFO]</span> Starting compilation pass for source file...</div>
+      <div class="build-log-line"><span class="build-log-info">[SCAN]</span> Scanning token structures... Scanned ${tokens.filter(t => t.category !== 'COMMENT' && t.category !== 'ERROR').length} tokens.</div>
+      <div class="build-log-line"><span class="build-log-info">[SCAN]</span> Scanned comments: ${tokens.filter(t => t.category === 'COMMENT').length}. Scanned errors: ${lexicalErrors}.</div>
+      <div class="build-log-line"><span class="build-log-info">[PARSE]</span> Launching syntax parser with synchronization-based error recovery...</div>
+      <div class="build-log-line"><span class="build-log-info">[PARSE]</span> Syntax pass completed. Registered ${parser.errors.length} syntax errors.</div>
+      <div class="build-log-line"><span class="build-log-info">[SEMANTIC]</span> Launching scope analyzer and type compatibility evaluator...</div>
+      <div class="build-log-line"><span class="build-log-info">[SEMANTIC]</span> Populated scope tables. Registered ${semResult.symbols.length} symbol definitions. Registered ${semantic.errors.length} semantic anomalies.</div>
+      <div class="build-log-line"><span class="build-log-info">[OPTIMIZE]</span> Traversing tree for constant folding reductions and dead branch prunings...</div>
+      <div class="build-log-line"><span class="build-log-info">[OPTIMIZE]</span> Completed optimization pass. Logged ${optResult.logs.length} optimization events.</div>
+      <div class="build-log-line"><span class="build-log-info">[ICG]</span> Generating target Three-Address Code (TAC) statements...</div>
+      <div class="build-log-line"><span class="build-log-info">[ICG]</span> Code generation completed. Compiled ${tacInstructions.length} instructions.</div>
+      <div style="border-top:1px dashed var(--border-color); margin-top:8px; padding-top:8px; font-weight:bold; color:${allErrors.length > 0 ? 'var(--red-color)' : 'var(--primary-color)'};">
+        [BUILD] ${allErrors.length > 0 ? `BUILD FAILURE: Compile failed with ${allErrors.length} diagnostic error(s).` : 'BUILD SUCCESSFUL! Process returned exit code 0.'}
+      </div>
+    </div>
+  `;
+
+  if (allErrors.length === 0) {
+    container.innerHTML = logHtml + `
+      <div class="console-box console-success">
+        <div style="font-size:24px;">✓</div>
+        <div>
+          <div style="font-weight:700;font-size:13px;margin-bottom:2px;">Compilation Succeeded!</div>
+          <div style="font-size:11px;opacity:0.8;">Generated visual abstract syntax tree, scope symbol table, folded optimization logs, and Three-Address Code instructions.</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  let errorsHtml = `<div style="margin-bottom:12px;font-size:11px;color:var(--text-dim);">Diagnostic compilation reports:</div>`;
+  allErrors.forEach(err => {
+    const isWarning = err.type.includes('Warning');
+    errorsHtml += `
+      <div class="error-card ${isWarning ? 'warning' : ''}">
+        <div class="error-title-row">
+          <span class="error-badge">${err.type}</span>
+          <span style="color:var(--text-dim);">Line ${err.line}, Column ${err.col}</span>
+        </div>
+        <div class="error-desc">${escapeHtml(err.msg)}</div>
+        ${err.snippet ? `<pre class="error-snippet">${highlightSnippetCaret(err.snippet, isWarning)}</pre>` : ''}
+      </div>
+    `;
+  });
+  
+  container.innerHTML = logHtml + errorsHtml;
+}
+
+function highlightSnippetCaret(snippet, isWarning) {
+  const lines = snippet.split('\n');
+  if (lines.length >= 3) {
+    const codeLineIndex = 1;
+    const caretLineIndex = 2;
+    lines[codeLineIndex] = `<span style="color:var(--text-bright);">${escapeHtml(lines[codeLineIndex])}</span>`;
+    lines[caretLineIndex] = `<span class="error-snippet-pointer">${escapeHtml(lines[caretLineIndex])}</span>`;
+  }
+  return lines.join('\n');
+}
+
+function renderScanner(tokens) {
+  const tbody = document.getElementById('tokensTableBody');
+  tbody.innerHTML = '';
+  
+  const filtered = tokens.filter(t => {
+    if (activeTokenFilter === 'ALL') return true;
+    return t.category === activeTokenFilter;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:20px;">No tokens matching selected category filter.</td></tr>`;
+    return;
+  }
+
+  filtered.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="color:var(--text-dim);">${t.line}:${t.col || 1}</td>
+      <td><span class="cat-badge cat-${t.category}">${t.category}</span></td>
+      <td style="font-weight:600;font-size:11px;color:var(--text-bright);">${t.type}</td>
+      <td style="color:var(--yellow-color);font-size:11px;"><code>${escapeHtml(t.value)}</code></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function filterTokens(category) {
+  activeTokenFilter = category;
+  document.querySelectorAll('#categoryFilterBar .filter-pill').forEach(pill => {
+    if (pill.textContent.toUpperCase() === category.replace('ALL', 'ALL')) {
+      pill.classList.add('active');
+    } else {
+      pill.classList.remove('active');
+    }
+  });
+  renderScanner(currentTokens);
+}
+
+// ─── COLLAPSIBLE AST RENDERER ───
+let nodeCounter = 0;
+function renderAST(ast) {
+  const container = document.getElementById('astTreeContainer');
+  if (!ast) {
+    container.innerHTML = `<p style="color:var(--text-dim); text-align:center; padding-top:40px;">No compile data.</p>`;
+    return;
+  }
+  nodeCounter = 0;
+
+  function buildNodeHtml(node) {
+    if (!node) return '';
+    
+    let label = `<span class="tree-node-type">${node.type}</span>`;
+    let details = '';
+    
+    if (node.value !== undefined) {
+      details += ` <span class="tree-node-val">"${escapeHtml(String(node.value))}"</span>`;
+    }
+    if (node.operator) {
+      details += ` <span class="tree-node-val" style="color:var(--red-color);">'${node.operator}'</span>`;
+    }
+    if (node.varType) {
+      details += ` <span class="tree-node-meta">(${node.varType.toLowerCase()})</span>`;
+    }
+    if (node.line) {
+      details += ` <span class="tree-node-meta">[line ${node.line}]</span>`;
+    }
+
+    let childrenHtml = '';
+    const childKeys = ['body', 'statements', 'declarations', 'init', 'condition', 'update', 'consequent', 'alternate', 'left', 'right', 'argument', 'expression'];
+    
+    childKeys.forEach(key => {
+      if (node[key]) {
+        const val = node[key];
+        if (Array.isArray(val)) {
+          val.forEach(child => {
+            childrenHtml += `<div class="tree-node">${buildNodeHtml(child)}</div>`;
+          });
+        } else if (typeof val === 'object') {
+          childrenHtml += `<div class="tree-node">${buildNodeHtml(val)}</div>`;
+        }
+      }
+    });
+
+    const nodeId = `ast-node-${nodeCounter++}`;
+    const hasChildren = childrenHtml !== '';
+    const expander = hasChildren ? `<span class="tree-toggle-icon" onclick="toggleAstNode('${nodeId}', this)">▼</span>` : '';
+
+    return `
+      <div style="display:flex;align-items:center;margin-bottom:2px;">
+        ${expander}
+        <div class="tree-label">${label} ${details}</div>
+      </div>
+      ${hasChildren ? `<div class="tree-children" id="${nodeId}" style="display:block;">${childrenHtml}</div>` : ''}
+    `;
+  }
+
+  container.innerHTML = `<div style="padding:10px 0;">${buildNodeHtml(ast)}</div>`;
+}
+
+window.toggleAstNode = function(id, icon) {
+  const children = document.getElementById(id);
+  if (children.style.display === 'none') {
+    children.style.display = 'block';
+    icon.textContent = '▼';
+  } else {
+    children.style.display = 'none';
+    icon.textContent = '▶';
+  }
+};
+
+function renderSymbols(symbols) {
+  const tbody = document.getElementById('symbolsTableBody');
+  tbody.innerHTML = '';
+
+  if (symbols.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:20px;">No symbols declared.</td></tr>`;
+    return;
+  }
+
+  symbols.forEach(sym => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="color:var(--blue-color);font-weight:700;">${sym.name}</td>
+      <td><span class="cat-badge cat-KEYWORD" style="font-size:10px;">${sym.type}</span></td>
+      <td style="color:var(--text-bright);">${sym.scope}</td>
+      <td style="color:var(--text-dim);">${sym.line}</td>
+      <td style="color:var(--yellow-color);font-weight:600;"><code>${escapeHtml(String(sym.value))}</code></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderOptimizer(origCode, optResult) {
+  document.getElementById('optOriginalCode').textContent = origCode;
+  document.getElementById('optOptimizedCode').textContent = optResult.code || '/* Empty program output */';
+
+  const logList = document.getElementById('optLogsList');
+  if (optResult.logs.length === 0) {
+    logList.innerHTML = `<div style="font-size:11px;color:var(--text-dim);">No optimization events logged. (AST is already optimized).</div>`;
+    return;
+  }
+
+  let html = '';
+  optResult.logs.forEach(log => {
+    html += `<div class="opt-log-item"><span style="color:var(--primary-color);">[Line ${log.line}]:</span> ${escapeHtml(log.msg)}</div>`;
+  });
+  logList.innerHTML = html;
+}
+
+function renderTAC(instructions) {
+  const container = document.getElementById('tacContainer');
+  if (instructions.length === 0) {
+    container.innerHTML = `<p style="color:var(--text-dim); text-align:center; padding-top:40px;">No Intermediate Code (TAC) generated.</p>`;
+    return;
+  }
+
+  let html = '';
+  instructions.forEach((inst, idx) => {
+    let styled = escapeHtml(inst);
+    if (inst.endsWith(':')) {
+      styled = `<span class="tac-label">${styled}</span>`;
+    } else {
+      styled = styled
+        .replace(/\b(proc|endproc|goto|ifFalse|if|decl|return|print|read)\b/g, '<span class="tac-keyword">$1</span>')
+        .replace(/([=\+\-\*\/%&|<>\!])/g, '<span class="tac-op">$1</span>');
+    }
+
+    html += `
+      <div class="tac-line">
+        <div class="tac-line-num">${idx + 1}</div>
+        <div class="tac-code">${styled}</div>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+// ─── DOWNLOAD EXPORTS ───
+function downloadASTJson() {
+  if (!currentAst) {
+    alert("Please compile some code first.");
+    return;
+  }
+  const json = JSON.stringify(currentAst, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ast_tree.json';
+  a.click();
+}
+
+function downloadOptimizedCode() {
+  const code = document.getElementById('optOptimizedCode').textContent;
+  if (!code || code.startsWith('/*')) {
+    alert("Please compile some code first.");
+    return;
+  }
+  const blob = new Blob([code], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'optimized_program.wpp';
+  a.click();
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ─── INITIALIZATION ───
+document.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get('mode') || 'scanner';
+  
+  loadPreset('success');
+  
+  if (mode === 'parser') {
+    switchTab('console');
+  } else {
+    switchTab('scanner');
+  }
+  
+  const toggle = document.getElementById('themeToggle');
+  if (localStorage.getItem('wpp_theme') === 'light') {
+    document.body.classList.add('light');
+    toggle.textContent = '☀';
+  }
+  toggle.addEventListener('click', () => {
+    document.body.classList.toggle('light');
+    const isLight = document.body.classList.contains('light');
+    toggle.textContent = isLight ? '☀' : '🌙';
+    localStorage.setItem('wpp_theme', isLight ? 'light' : 'dark');
+  });
+});
+</script>
+</body>
+</html>

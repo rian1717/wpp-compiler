@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W++ Token Analyzer — CS-310</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c14;
+    --panel: #0e1420;
+    --panel2: #131926;
+    --border: #1e2a3a;
+    --border2: #243347;
+    --green: #00e676;
+    --green-dim: #00a854;
+    --green-glow: rgba(0,230,118,0.12);
+    --blue: #40c4ff;
+    --yellow: #ffd740;
+    --red: #ff5252;
+    --purple: #ce93d8;
+    --orange: #ffab40;
+    --text: #c8d8e8;
+    --text-dim: #6b8299;
+    --text-bright: #e8f4ff;
+    --mono: 'JetBrains Mono', 'Courier New', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    font-size: 13px;
+  }
+
+  /* ─── HEADER ─────────────────────────────── */
+  .header {
+    background: linear-gradient(135deg, #0a1628 0%, #0e1f38 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+  }
+
+  .header-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--green), var(--green-dim));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700;
+    color: #000;
+    box-shadow: 0 0 20px var(--green-glow);
+    font-family: var(--sans);
+  }
+
+  .header-title {
+    font-family: var(--sans);
+  }
+
+  .header-title h1 {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-bright);
+    letter-spacing: -0.3px;
+  }
+
+  .header-title p {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 1px;
+    font-family: var(--mono);
+  }
+
+  .header-badge {
+    margin-left: auto;
+    background: rgba(0,230,118,0.08);
+    border: 1px solid rgba(0,230,118,0.25);
+    color: var(--green);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* ─── MAIN LAYOUT ─────────────────────────── */
+  .layout {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    height: calc(100vh - 83px);
+  }
+
+  /* ─── LEFT PANEL ─────────────────────────── */
+  .left-panel {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel2);
+  }
+
+  .panel-header h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot-green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot-yellow { background: var(--yellow); }
+  .dot-red { background: var(--red); }
+
+  .file-upload-area {
+    margin: 16px;
+    border: 2px dashed var(--border2);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(255,255,255,0.01);
+    position: relative;
+  }
+
+  .file-upload-area:hover, .file-upload-area.drag-over {
+    border-color: var(--green-dim);
+    background: var(--green-glow);
+  }
+
+  .file-upload-area input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+
+  .upload-icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-text { color: var(--text-dim); font-size: 12px; line-height: 1.5; }
+  .upload-text span { color: var(--green); }
+
+  .filename-display {
+    margin: 0 16px 8px;
+    padding: 6px 12px;
+    background: rgba(0,230,118,0.06);
+    border: 1px solid rgba(0,230,118,0.2);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--green);
+    display: none;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .filename-display.show { display: flex; }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px;
+    margin: 4px 0;
+    color: var(--text-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  .code-editor {
+    flex: 1;
+    margin: 8px 16px 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .code-editor label {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  textarea#codeInput {
+    flex: 1;
+    width: 100%;
+    background: #060a10;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 14px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+    tab-size: 2;
+  }
+
+  textarea#codeInput:focus {
+    border-color: var(--green-dim);
+    box-shadow: 0 0 0 2px rgba(0,168,84,0.1);
+  }
+
+  textarea#codeInput::placeholder {
+    color: var(--border2);
+  }
+
+  .action-bar {
+    padding: 14px 16px;
+    display: flex;
+    gap: 8px;
+    border-top: 1px solid var(--border);
+    background: var(--panel2);
+  }
+
+  .btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.18s;
+    letter-spacing: 0.3px;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--green), var(--green-dim));
+    color: #000;
+    box-shadow: 0 4px 15px rgba(0,230,118,0.25);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0,230,118,0.35);
+  }
+
+  .btn-secondary {
+    background: var(--panel);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--border2);
+    color: var(--text);
+  }
+
+  .btn-sample {
+    background: rgba(64,196,255,0.08);
+    color: var(--blue);
+    border: 1px solid rgba(64,196,255,0.2);
+    flex: 0 0 auto;
+    padding: 10px 14px;
+  }
+
+  .btn-sample:hover {
+    background: rgba(64,196,255,0.15);
+  }
+
+  /* ─── RIGHT PANEL ─────────────────────────── */
+  .right-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .report-header {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--panel2);
+    flex-shrink: 0;
+  }
+
+  .report-header h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+
+  .report-tabs {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .tab-btn {
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .tab-btn.active, .tab-btn:hover {
+    background: rgba(0,230,118,0.08);
+    border-color: rgba(0,230,118,0.3);
+    color: var(--green);
+  }
+
+  .report-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    scroll-behavior: smooth;
+  }
+
+  .report-content::-webkit-scrollbar { width: 6px; }
+  .report-content::-webkit-scrollbar-track { background: transparent; }
+  .report-content::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* ─── WELCOME STATE ─────────────────────────── */
+  .welcome-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 16px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  .welcome-state .big-icon { font-size: 56px; opacity: 0.3; }
+
+  .welcome-state h3 {
+    font-size: 15px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-weight: 600;
+  }
+
+  .welcome-state p { font-size: 12px; line-height: 1.6; max-width: 320px; }
+
+  /* ─── REPORT SECTIONS ─────────────────────── */
+  .report-section {
+    margin-bottom: 32px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .section-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--green);
+    font-weight: 700;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title::before {
+    content: '';
+    width: 3px; height: 14px;
+    background: var(--green);
+    border-radius: 2px;
+    display: block;
+  }
+
+  /* ─── STAT CARDS ─────────────────────────── */
+  .stat-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    transition: border-color 0.2s;
+  }
+
+  .stat-card:hover { border-color: var(--border2); }
+
+  .stat-card .label {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+  }
+
+  .stat-card .value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-bright);
+    line-height: 1;
+  }
+
+  .stat-card .sublabel {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  .stat-card.highlight { border-color: rgba(0,230,118,0.3); }
+  .stat-card.highlight .value { color: var(--green); }
+
+  /* ─── TABLES ─────────────────────────── */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    background: var(--panel);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .data-table thead tr {
+    background: var(--panel2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .data-table th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .data-table tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+
+  .data-table tbody tr:last-child { border-bottom: none; }
+  .data-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+  .data-table td {
+    padding: 8px 14px;
+    vertical-align: middle;
+    line-height: 1.4;
+  }
+
+  /* Category badges */
+  .cat-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  .cat-KEYWORD    { background: rgba(206,147,216,0.15); color: var(--purple); border: 1px solid rgba(206,147,216,0.3); }
+  .cat-IDENTIFIER { background: rgba(64,196,255,0.12);  color: var(--blue);   border: 1px solid rgba(64,196,255,0.3); }
+  .cat-LITERAL    { background: rgba(255,215,64,0.12);  color: var(--yellow); border: 1px solid rgba(255,215,64,0.3); }
+  .cat-OPERATOR   { background: rgba(255,82,82,0.12);   color: var(--red);    border: 1px solid rgba(255,82,82,0.3); }
+  .cat-SEPARATOR  { background: rgba(0,230,118,0.10);   color: var(--green);  border: 1px solid rgba(0,230,118,0.25); }
+  .cat-COMMENT    { background: rgba(107,130,153,0.15); color: var(--text-dim); border: 1px solid var(--border); }
+
+  .token-type-cell { font-family: var(--mono); font-size: 11px; color: var(--text-bright); }
+
+  .qty-cell { font-weight: 700; color: var(--text-bright); text-align: right; }
+
+  .pct-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pct-bar-bg {
+    height: 4px;
+    width: 60px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .pct-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--green);
+    transition: width 0.4s ease;
+  }
+
+  .lines-cell {
+    font-size: 11px;
+    color: var(--text-dim);
+    max-width: 200px;
+    word-break: break-all;
+  }
+
+  .ignored-cell { font-style: italic; color: var(--text-dim); font-size: 11px; }
+
+  /* Summary box */
+  .summary-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 32px;
+  }
+
+  .summary-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px dashed rgba(255,255,255,0.04);
+  }
+
+  .summary-row:last-child { border-bottom: none; }
+
+  .summary-key {
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  .summary-val {
+    font-size: 12px;
+    color: var(--text-bright);
+    font-weight: 600;
+    margin-left: auto;
+    text-align: right;
+  }
+
+  .summary-val.highlight-green { color: var(--green); }
+  .summary-val.highlight-yellow { color: var(--yellow); }
+  .summary-val.highlight-blue { color: var(--blue); }
+
+  /* Category breakdown */
+  .cat-breakdown {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .cat-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cat-row:last-child { border-bottom: none; }
+
+  .cat-row-name { font-size: 11px; width: 110px; font-weight: 600; }
+  .cat-row-bar-wrap { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .cat-row-bar { height: 100%; border-radius: 4px; transition: width 0.5s; }
+  .cat-row-stats { font-size: 11px; color: var(--text-dim); width: 100px; text-align: right; }
+
+  /* Raw report view */
+  .raw-report {
+    background: #060a10;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    white-space: pre;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.65;
+    color: var(--text);
+    overflow-x: auto;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .raw-report .r-header { color: var(--green); font-weight: 700; }
+  .raw-report .r-section { color: var(--blue); font-weight: 600; }
+  .raw-report .r-divider { color: var(--border2); }
+
+  /* Download bar */
+  .download-bar {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .btn-download {
+    padding: 8px 18px;
+    border: 1px solid var(--border2);
+    background: var(--panel);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-download:hover {
+    border-color: var(--green-dim);
+    color: var(--green);
+    background: rgba(0,230,118,0.05);
+  }
+
+  /* Scroll to section nav */
+  .section-nav {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+
+  .sec-link {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    color: var(--text-dim);
+    font-size: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .sec-link:hover {
+    border-color: var(--green-dim);
+    color: var(--green);
+  }
+
+  /* Loading state */
+  .analyzing {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--green);
+    font-size: 13px;
+    padding: 20px;
+  }
+
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(0,230,118,0.2);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Error state */
+  .error-msg {
+    background: rgba(255,82,82,0.08);
+    border: 1px solid rgba(255,82,82,0.25);
+    color: var(--red);
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 12px;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; height: auto; }
+    .left-panel { height: 60vh; }
+    .stat-cards { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-logo">
+    <div class="logo-icon">W+</div>
+    <div class="header-title">
+      <h1>W++ Token Analyzer</h1>
+      <p>CS-310 Compiler Construction — Spring 2026</p>
+    </div>
+  </div>
+  <div class="header-badge">Lexical Analysis Phase</div>
+</header>
+
+<div class="layout">
+
+  <!-- ── LEFT PANEL ── -->
+  <aside class="left-panel">
+    <div class="panel-header">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+      <h2 style="margin-left:6px;">Source Input</h2>
+    </div>
+
+    <div class="file-upload-area" id="dropZone">
+      <input type="file" id="fileInput" accept=".wpp,.txt">
+      <div class="upload-icon">📂</div>
+      <div class="upload-text">
+        Drop <span>.wpp file</span> here<br>
+        or click to browse
+      </div>
+    </div>
+
+    <div class="filename-display" id="filenameDisplay">
+      <span>📄</span>
+      <span id="filenameText"></span>
+    </div>
+
+    <div class="divider">or paste code</div>
+
+    <div class="code-editor">
+      <label>W++ Source Code</label>
+      <textarea id="codeInput" placeholder="// Paste W++ code here or upload a .wpp file above
+int main() {
+    int x = 10;
+    return x;
+}"></textarea>
+    </div>
+
+    <div class="action-bar">
+      <button class="btn btn-sample" onclick="loadSample()" title="Load the test program from the assignment">📋 Sample</button>
+      <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+      <button class="btn btn-primary" onclick="analyzeCode()">▶ Analyze</button>
+    </div>
+  </aside>
+
+  <!-- ── RIGHT PANEL ── -->
+  <main class="right-panel">
+    <div class="report-header">
+      <span class="dot dot-green" style="opacity:0.5"></span>
+      <h2>Statistical Report</h2>
+      <div class="report-tabs" id="reportTabs" style="display:none;">
+        <button class="tab-btn active" onclick="switchView('visual', this)">Visual</button>
+        <button class="tab-btn" onclick="switchView('raw', this)">Raw Text</button>
+      </div>
+    </div>
+
+    <div class="report-content" id="reportContent">
+      <div class="welcome-state">
+        <div class="big-icon">⚙️</div>
+        <h3>Ready to Analyze</h3>
+        <p>Upload a <code style="color:var(--green)">.wpp</code> file or paste W++ source code, then click <strong>Analyze</strong> to generate the statistical report.</p>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  W++ TOKENIZER  —  CS-310 Compiler Construction
+// ═══════════════════════════════════════════════════════════════
+
+const KEYWORDS = new Set([
+  'int','float','double','char','string','if','else','while',
+  'for','return','print','read','true','false','bool','void','main'
+]);
+
+const KEYWORD_MAP = {
+  'int':'KEYWORD_INT','float':'KEYWORD_FLOAT','double':'KEYWORD_DOUBLE',
+  'char':'KEYWORD_CHAR','string':'KEYWORD_STRING','if':'KEYWORD_IF',
+  'else':'KEYWORD_ELSE','while':'KEYWORD_WHILE','for':'KEYWORD_FOR',
+  'return':'KEYWORD_RETURN','print':'KEYWORD_PRINT','read':'KEYWORD_READ',
+  'true':'KEYWORD_TRUE','false':'KEYWORD_FALSE','bool':'KEYWORD_BOOL',
+  'void':'KEYWORD_VOID','main':'KEYWORD_MAIN'
+};
+
+function tokenize(source) {
+  const tokens = [];
+  let i = 0, line = 1;
+  const len = source.length;
+
+  while (i < len) {
+    const ch = source[i];
+
+    // ── Newline
+    if (ch === '\r') { i++; continue; }
+    if (ch === '\n') { line++; i++; continue; }
+
+    // ── Whitespace / Tab
+    if (ch === ' ' || ch === '\t') { i++; continue; }
+
+    // ── Single-line comment  //
+    if (ch === '/' && source[i+1] === '/') {
+      const sl = line, start = i;
+      while (i < len && source[i] !== '\n') i++;
+      tokens.push({ type:'COMMENT', category:'COMMENT', value: source.slice(start,i), line: sl });
+      continue;
+    }
+
+    // ── Multi-line comment  /* */
+    if (ch === '/' && source[i+1] === '*') {
+      const sl = line, start = i;
+      i += 2;
+      while (i < len && !(source[i]==='*' && source[i+1]==='/')) {
+        if (source[i] === '\n') line++;
+        i++;
+      }
+      i += 2;
+      tokens.push({ type:'COMMENT', category:'COMMENT', value: source.slice(start,i), line: sl });
+      continue;
+    }
+
+    // ── String literal  "..."
+    if (ch === '"') {
+      const sl = line, start = i; i++;
+      while (i < len && source[i] !== '"') {
+        if (source[i] === '\\') i++;  // skip escape
+        i++;
+      }
+      i++; // closing "
+      tokens.push({ type:'LITERAL_STRING', category:'LITERAL', value: source.slice(start,i), line: sl });
+      continue;
+    }
+
+    // ── Char literal  '.'
+    if (ch === "'") {
+      const sl = line, start = i; i++;
+      if (source[i] === '\\') { i++; }  // escape sequence
+      i++;  // the char itself
+      if (source[i] === "'") i++;  // closing '
+      tokens.push({ type:'LITERAL_CHAR', category:'LITERAL', value: source.slice(start,i), line: sl });
+      continue;
+    }
+
+    // ── Two-character operators (check BEFORE single-char)
+    const two = source.slice(i, i+2);
+    const twoOps = {
+      '<=':'OPERATOR_LTE','>=':'OPERATOR_GTE','==':'OPERATOR_EQ',
+      '!=':'OPERATOR_NEQ','&&':'OPERATOR_AND','||':'OPERATOR_OR'
+    };
+    if (twoOps[two]) {
+      tokens.push({ type: twoOps[two], category:'OPERATOR', value: two, line });
+      i += 2; continue;
+    }
+
+    // ── Single-character operators
+    const oneOps = {
+      '=':'OPERATOR_ASSIGN','+':'OPERATOR_PLUS','-':'OPERATOR_MINUS',
+      '*':'OPERATOR_MULT','/':'OPERATOR_DIV','%':'OPERATOR_MOD',
+      '<':'OPERATOR_LT','>':'OPERATOR_GT','!':'OPERATOR_NOT'
+    };
+    if (oneOps[ch]) {
+      tokens.push({ type: oneOps[ch], category:'OPERATOR', value: ch, line });
+      i++; continue;
+    }
+
+    // ── Separators
+    const seps = {
+      ';':'SEPARATOR_SEMICOLON',',':'SEPARATOR_COMMA',
+      '(':'SEPARATOR_LPAREN',')':'SEPARATOR_RPAREN',
+      '{':'SEPARATOR_LBRACE','}':'SEPARATOR_RBRACE'
+    };
+    if (seps[ch]) {
+      tokens.push({ type: seps[ch], category:'SEPARATOR', value: ch, line });
+      i++; continue;
+    }
+
+    // ── Number literals (integer or float)
+    if (/[0-9]/.test(ch)) {
+      const sl = line; let val = '';
+      while (i < len && /[0-9]/.test(source[i])) { val += source[i]; i++; }
+      if (source[i] === '.') {
+        val += '.'; i++;
+        if (/[0-9]/.test(source[i])) {
+          while (i < len && /[0-9]/.test(source[i])) { val += source[i]; i++; }
+        }
+        tokens.push({ type:'LITERAL_FLOAT', category:'LITERAL', value: val, line: sl });
+      } else {
+        tokens.push({ type:'LITERAL_INTEGER', category:'LITERAL', value: val, line: sl });
+      }
+      continue;
+    }
+
+    // ── Identifiers and Keywords
+    if (/[a-zA-Z_]/.test(ch)) {
+      const sl = line; let val = '';
+      while (i < len && /[a-zA-Z0-9_]/.test(source[i])) { val += source[i]; i++; }
+      if (KEYWORDS.has(val)) {
+        tokens.push({ type: KEYWORD_MAP[val] || 'KEYWORD_'+val.toUpperCase(), category:'KEYWORD', value: val, line: sl });
+      } else {
+        tokens.push({ type:'IDENTIFIER', category:'IDENTIFIER', value: val, line: sl });
+      }
+      continue;
+    }
+
+    // ── Unknown — skip silently
+    i++;
+  }
+
+  return tokens;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  REPORT GENERATOR
+// ═══════════════════════════════════════════════════════════════
+
+function generateStats(tokens, totalLines, filename) {
+  const allTokens   = tokens;
+  const mainTokens  = tokens.filter(t => t.category !== 'COMMENT');
+  const totalTokens = mainTokens.length;
+
+  // Lines with at least one non-comment token
+  const codeLineSet = new Set(mainTokens.map(t => t.line));
+  const linesWithCode = codeLineSet.size;
+  const emptyIgnored  = totalLines - linesWithCode;
+
+  // ── Token Type Summary
+  const typeMap = {};
+  for (const tok of mainTokens) {
+    if (!typeMap[tok.type]) {
+      typeMap[tok.type] = { type: tok.type, category: tok.category, count: 0, lines: new Set() };
+    }
+    typeMap[tok.type].count++;
+    typeMap[tok.type].lines.add(tok.line);
+  }
+
+  // ── Line-wise Distribution
+  const lineMap = {};
+  for (const tok of mainTokens) {
+    lineMap[tok.line] = (lineMap[tok.line] || 0) + 1;
+  }
+
+  // ── Identifier Statistics
+  const identMap = {};
+  for (const tok of mainTokens.filter(t => t.category === 'IDENTIFIER')) {
+    if (!identMap[tok.value]) identMap[tok.value] = { name: tok.value, count: 0, lines: new Set() };
+    identMap[tok.value].count++;
+    identMap[tok.value].lines.add(tok.line);
+  }
+
+  // ── Literal Statistics
+  const litMap = {};
+  for (const tok of mainTokens.filter(t => t.category === 'LITERAL')) {
+    const key = tok.value + '||' + tok.type;
+    if (!litMap[key]) {
+      litMap[key] = { value: tok.value, type: tok.type.replace('LITERAL_',''), count: 0, lines: new Set() };
+    }
+    litMap[key].count++;
+    litMap[key].lines.add(tok.line);
+  }
+
+  // ── Category Breakdown
+  const catMap = {};
+  for (const tok of mainTokens) {
+    catMap[tok.category] = (catMap[tok.category] || 0) + 1;
+  }
+  const allCats = ['KEYWORD','IDENTIFIER','LITERAL','OPERATOR','SEPARATOR','COMMENT'];
+  for (const c of allCats) { if (!catMap[c]) catMap[c] = 0; }
+
+  // ── Most/Least Frequent Token Type
+  const typeArr = Object.values(typeMap).sort((a, b) => b.count - a.count);
+  const mostFreq  = typeArr[0]  || { type:'N/A', count:0 };
+  const leastFreq = typeArr[typeArr.length - 1] || { type:'N/A', count:0 };
+
+  // ── Line stats
+  const lineArr = Object.entries(lineMap).map(([l,c]) => ({ line: +l, count: c }));
+  const maxLine = lineArr.length ? lineArr.reduce((a,b) => b.count>a.count?b:a) : { line:0, count:0 };
+  const minLine = lineArr.length ? lineArr.reduce((a,b) => b.count<a.count?b:a) : { line:0, count:0 };
+  const avgPerLine = linesWithCode ? (totalTokens / linesWithCode).toFixed(2) : '0.00';
+
+  return {
+    filename, totalLines, totalTokens, linesWithCode, emptyIgnored,
+    typeMap, typeArr, lineMap, identMap, litMap, catMap,
+    mostFreq, leastFreq, uniqueTypes: typeArr.length,
+    maxLine, minLine, avgPerLine
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  VISUAL REPORT BUILDER (HTML tables)
+// ═══════════════════════════════════════════════════════════════
+
+function buildVisualReport(stats) {
+  const { filename, totalLines, totalTokens, linesWithCode, emptyIgnored,
+          typeMap, typeArr, lineMap, identMap, litMap, catMap,
+          mostFreq, leastFreq, uniqueTypes, maxLine, minLine, avgPerLine } = stats;
+
+  const cats = ['KEYWORD','IDENTIFIER','LITERAL','OPERATOR','SEPARATOR'];
+  const catColors = {
+    KEYWORD:'#7c4dff',IDENTIFIER:'#40c4ff',LITERAL:'#ffd740',
+    OPERATOR:'#ff5252',SEPARATOR:'#00e676',COMMENT:'#6b8299'
+  };
+
+  let html = `
+  <!-- Quick nav -->
+  <div class="section-nav">
+    <a class="sec-link" href="#sec-header">Header</a>
+    <a class="sec-link" href="#sec1">1. Token Summary</a>
+    <a class="sec-link" href="#sec2">2. Line Distribution</a>
+    <a class="sec-link" href="#sec3">3. Identifiers</a>
+    <a class="sec-link" href="#sec4">4. Literals</a>
+    <a class="sec-link" href="#sec5">5. Overall Summary</a>
+    <a class="sec-link" href="#sec6">6. Category Breakdown</a>
+  </div>
+
+  <!-- ── HEADER ── -->
+  <div class="report-section" id="sec-header">
+    <div class="section-title">W++ Token Analyzer — Statistical Report</div>
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="label">Input File</div>
+        <div class="value" style="font-size:14px;margin-top:4px;">\${filename}</div>
+      </div>
+      <div class="stat-card highlight">
+        <div class="label">Total Tokens</div>
+        <div class="value">\${totalTokens}</div>
+        <div class="sublabel">non-comment</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Total Lines</div>
+        <div class="value">\${totalLines}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Lines with Code</div>
+        <div class="value">\${linesWithCode}</div>
+        <div class="sublabel">\${emptyIgnored} empty/ignored</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 1: TOKEN TYPE SUMMARY ── -->
+  <div class="report-section" id="sec1">
+    <div class="section-title">1. Token Type Summary</div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Token Type</th>
+          <th style="text-align:right;">Qty</th>
+          <th>Percentage</th>
+          <th>Lines</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  // Group by category order
+  const catOrder = ['KEYWORD','IDENTIFIER','LITERAL','OPERATOR','SEPARATOR'];
+  const grouped = {};
+  for (const cat of catOrder) grouped[cat] = [];
+  for (const t of typeArr) {
+    if (grouped[t.category]) grouped[t.category].push(t);
+  }
+
+  for (const cat of catOrder) {
+    for (const t of grouped[cat]) {
+      const pct = ((t.count / totalTokens)*100).toFixed(2);
+      const linesStr = [...t.lines].sort((a,b)=>a-b).join(', ');
+      html += `
+        <tr>
+          <td><span class="cat-badge cat-\${cat}">\${cat}</span></td>
+          <td class="token-type-cell">\${t.type}</td>
+          <td class="qty-cell">\${t.count}</td>
+          <td>
+            <div class="pct-bar">
+              <div class="pct-bar-bg"><div class="pct-bar-fill" style="width:\${Math.min(pct*3,100)}%"></div></div>
+              <span style="font-size:11px;color:var(--text-dim);">\${pct}%</span>
+            </div>
+          </td>
+          <td class="lines-cell">\${linesStr}</td>
+        </tr>`;
+    }
+  }
+
+  // COMMENT and WHITESPACE rows (ignored)
+  html += `
+        <tr>
+          <td><span class="cat-badge cat-COMMENT">COMMENT</span></td>
+          <td class="token-type-cell">COMMENT</td>
+          <td class="qty-cell">0</td>
+          <td><span class="ignored-cell">(ignored)</span></td>
+          <td class="ignored-cell">(ignored)</td>
+        </tr>
+        <tr>
+          <td><span class="cat-badge cat-COMMENT">WHITESPACE</span></td>
+          <td class="token-type-cell">WHITESPACE</td>
+          <td class="qty-cell">0</td>
+          <td><span class="ignored-cell">(ignored)</span></td>
+          <td class="ignored-cell">(ignored)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── SECTION 2: LINE-WISE DISTRIBUTION ── -->
+  <div class="report-section" id="sec2">
+    <div class="section-title">2. Line-wise Token Distribution</div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Line #</th>
+          <th>Total Tokens</th>
+          <th>Distribution</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  const maxCount = Math.max(...Object.values(lineMap), 1);
+  for (const [lineNum, count] of Object.entries(lineMap).sort((a,b) => +a[0] - +b[0])) {
+    const barW = Math.round((count / maxCount) * 100);
+    html += `
+        <tr>
+          <td style="color:var(--text-dim);font-size:11px;">Line \${lineNum}</td>
+          <td style="font-weight:600;">\${count}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="flex:1;height:6px;background:var(--border);border-radius:3px;max-width:200px;">
+                <div style="width:\${barW}%;height:100%;background:var(--blue);border-radius:3px;opacity:0.7;"></div>
+              </div>
+            </div>
+          </td>
+        </tr>`;
+  }
+
+  html += `
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── SECTION 3: IDENTIFIER STATISTICS ── -->
+  <div class="report-section" id="sec3">
+    <div class="section-title">3. Identifier Statistics</div>`;
+
+  if (Object.keys(identMap).length === 0) {
+    html += `<p style="color:var(--text-dim);font-size:12px;">No identifiers found.</p>`;
+  } else {
+    html += `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Identifier</th>
+          <th style="text-align:right;">Frequency</th>
+          <th>Lines</th>
+        </tr>
+      </thead>
+      <tbody>`;
+    for (const id of Object.values(identMap).sort((a,b) => b.count - a.count)) {
+      html += `
+        <tr>
+          <td style="color:var(--blue);font-weight:600;">\${id.name}</td>
+          <td class="qty-cell">\${id.count}</td>
+          <td class="lines-cell">\${[...id.lines].sort((a,b)=>a-b).join(', ')}</td>
+        </tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+
+  html += `</div>
+
+  <!-- ── SECTION 4: LITERAL STATISTICS ── -->
+  <div class="report-section" id="sec4">
+    <div class="section-title">4. Literal Statistics</div>`;
+
+  if (Object.keys(litMap).length === 0) {
+    html += `<p style="color:var(--text-dim);font-size:12px;">No literals found.</p>`;
+  } else {
+    html += `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Literal Value</th>
+          <th>Type</th>
+          <th style="text-align:right;">Frequency</th>
+          <th>Lines</th>
+        </tr>
+      </thead>
+      <tbody>`;
+    for (const lit of Object.values(litMap).sort((a,b) => b.count - a.count)) {
+      const typeColor = lit.type==='INTEGER'?'var(--yellow)':lit.type==='FLOAT'?'var(--orange)':lit.type==='STRING'?'var(--green)':'var(--purple)';
+      html += `
+        <tr>
+          <td style="color:var(--text-bright);font-weight:500;">\${lit.value}</td>
+          <td><span class="cat-badge" style="background:\${typeColor}22;color:\${typeColor};border-color:\${typeColor}55;">\${lit.type}</span></td>
+          <td class="qty-cell">\${lit.count}</td>
+          <td class="lines-cell">\${[...lit.lines].sort((a,b)=>a-b).join(', ')}</td>
+        </tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+
+  html += `</div>
+
+  <!-- ── SECTION 5: OVERALL SUMMARY ── -->
+  <div class="report-section" id="sec5">
+    <div class="section-title">5. Token Summary Statistics</div>
+    <div class="summary-box">
+      <div>
+        <div class="summary-row">
+          <span class="summary-key">Total Tokens</span>
+          <span class="summary-val highlight-green">\${totalTokens}</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Unique Token Types</span>
+          <span class="summary-val">\${uniqueTypes}</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Lines with Code</span>
+          <span class="summary-val">\${linesWithCode}</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Empty/Ignored Lines</span>
+          <span class="summary-val">\${emptyIgnored}</span>
+        </div>
+      </div>
+      <div>
+        <div class="summary-row">
+          <span class="summary-key">Most Frequent Token</span>
+          <span class="summary-val highlight-green" style="font-size:10px;">\${mostFreq.type} (\${mostFreq.count}, \${((mostFreq.count/totalTokens)*100).toFixed(2)}%)</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Least Frequent Token</span>
+          <span class="summary-val" style="font-size:10px;">\${leastFreq.type} (\${leastFreq.count}, \${((leastFreq.count/totalTokens)*100).toFixed(2)}%)</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Average Tokens/Line</span>
+          <span class="summary-val highlight-blue">\${avgPerLine}</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Max Tokens on a Line</span>
+          <span class="summary-val highlight-yellow">\${maxLine.count} (Line \${maxLine.line})</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Min Tokens on a Line</span>
+          <span class="summary-val">\${minLine.count} (Line \${minLine.line})</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 6: CATEGORY BREAKDOWN ── -->
+  <div class="report-section" id="sec6">
+    <div class="section-title">6. Token Category Breakdown</div>
+    <div class="cat-breakdown">`;
+
+  const allCatsWithCounts = Object.entries(catMap).sort((a,b) => b[1]-a[1]);
+  const maxCatCount = Math.max(...Object.values(catMap), 1);
+
+  for (const [cat, count] of allCatsWithCounts) {
+    const pct = totalTokens ? ((count/totalTokens)*100).toFixed(2) : '0.00';
+    const barW = Math.round((count / maxCatCount)*100);
+    const color = catColors[cat] || '#6b8299';
+    html += `
+      <div class="cat-row">
+        <span class="cat-badge cat-\${cat} cat-row-name">\${cat}</span>
+        <div class="cat-row-bar-wrap">
+          <div class="cat-row-bar" style="width:\${barW}%;background:\${color};opacity:0.8;"></div>
+        </div>
+        <span class="cat-row-stats">\${count} &nbsp;|&nbsp; \${pct}%</span>
+      </div>`;
+  }
+
+  html += `
+    </div>
+  </div>
+
+  <!-- Download -->
+  <div class="download-bar">
+    <button class="btn-download" onclick="switchView('raw', document.querySelector('.tab-btn:nth-child(2)'))">📄 View Raw Text Report</button>
+    <button class="btn-download" onclick="downloadReport()">⬇ Download .txt Report</button>
+  </div>`;
+
+  return html;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RAW TEXT REPORT  (matches PDF format exactly)
+// ═══════════════════════════════════════════════════════════════
+
+function buildRawReport(stats) {
+  const { filename, totalLines, totalTokens, linesWithCode, emptyIgnored,
+          typeMap, typeArr, lineMap, identMap, litMap, catMap,
+          mostFreq, leastFreq, uniqueTypes, maxLine, minLine, avgPerLine } = stats;
+
+  const SEP = '='.repeat(78);
+  const SEP2 = '-'.repeat(78);
+  let r = '';
+
+  r += SEP + '\\n';
+  r += centerText('W++ TOKEN ANALYZER - STATISTICAL REPORT', 78) + '\\n';
+  r += SEP + '\\n\\n';
+
+  r += \`INPUT FILE: \${filename}\\n\`;
+  r += \`TOTAL LINES: \${totalLines}\\n\`;
+  r += \`LINES WITH CODE: \${linesWithCode}\\n\`;
+  r += \`TOTAL TOKENS: \${totalTokens}\\n\\n\`;
+
+  // ── Section 1
+  r += SEP + '\\n';
+  r += '1. TOKEN TYPE SUMMARY\\n';
+  r += SEP + '\\n\\n';
+
+  const c1=16, c2=28, c3=7, c4=9;
+  r += padR('Category',c1) + '| ' + padR('Token Type',c2) + '| ' + padR('Qty',c3) + '| ' + padR('%',c4) + '| Lines\\n';
+  r += SEP2.slice(0,c1) + '|' + SEP2.slice(0,c2+1) + '|' + SEP2.slice(0,c3+1) + '|' + SEP2.slice(0,c4+1) + '|' + SEP2.slice(0,24) + '\\n';
+
+  const catOrder = ['KEYWORD','IDENTIFIER','LITERAL','OPERATOR','SEPARATOR'];
+  const grouped = {};
+  for (const cat of catOrder) grouped[cat] = [];
+  for (const t of typeArr) { if (grouped[t.category]) grouped[t.category].push(t); }
+
+  for (const cat of catOrder) {
+    for (const t of grouped[cat]) {
+      const pct = ((t.count/totalTokens)*100).toFixed(2) + '%';
+      const lines = [...t.lines].sort((a,b)=>a-b).join(',');
+      r += padR(cat,c1) + '| ' + padR(t.type,c2) + '| ' + padL(String(t.count),c3-1) + ' | ' + padR(pct,c4-1) + '| ' + lines + '\\n';
+    }
+  }
+  r += padR('COMMENT',c1) + '| ' + padR('COMMENT',c2) + '| ' + padL('0',c3-1) + ' | ' + padR('0.00%',c4-1) + '| (ignored)\\n';
+  r += padR('WHITESPACE',c1) + '| ' + padR('WHITESPACE',c2) + '| ' + padL('0',c3-1) + ' | ' + padR('0.00%',c4-1) + '| (ignored)\\n';
+  r += '\\n' + SEP2 + '\\n\\n';
+
+  // ── Section 2
+  r += SEP + '\\n';
+  r += '2. LINE-WISE TOKEN DISTRIBUTION\\n';
+  r += SEP + '\\n\\n';
+
+  r += padR('Line Number',14) + '| Total Tokens\\n';
+  r += SEP2.slice(0,14) + '|' + SEP2.slice(0,14) + '\\n';
+  for (const [ln, cnt] of Object.entries(lineMap).sort((a,b)=>+a[0]-+b[0])) {
+    r += padR(\`Line \${ln}\`,14) + '| ' + cnt + '\\n';
+  }
+  r += '\\n' + SEP2 + '\\n\\n';
+
+  // ── Section 3
+  r += SEP + '\\n';
+  r += '3. IDENTIFIER STATISTICS\\n';
+  r += SEP + '\\n\\n';
+
+  r += padR('Identifier',20) + '| ' + padR('Frequency',12) + '| Lines\\n';
+  r += SEP2.slice(0,20) + '|' + SEP2.slice(0,13) + '|' + SEP2.slice(0,24) + '\\n';
+  for (const id of Object.values(identMap).sort((a,b)=>b.count-a.count)) {
+    const lines = [...id.lines].sort((a,b)=>a-b).join(',');
+    r += padR(id.name,20) + '| ' + padL(String(id.count),11) + ' | ' + lines + '\\n';
+  }
+  r += '\\n' + SEP2 + '\\n\\n';
+
+  // ── Section 4
+  r += SEP + '\\n';
+  r += '4. LITERAL STATISTICS\\n';
+  r += SEP + '\\n\\n';
+
+  r += padR('Literal',20) + '| ' + padR('Type',10) + '| ' + padR('Frequency',12) + '| Lines\\n';
+  r += SEP2.slice(0,20) + '|' + SEP2.slice(0,11) + '|' + SEP2.slice(0,13) + '|' + SEP2.slice(0,24) + '\\n';
+  for (const lit of Object.values(litMap).sort((a,b)=>b.count-a.count)) {
+    const lines = [...lit.lines].sort((a,b)=>a-b).join(',');
+    r += padR(lit.value,20) + '| ' + padR(lit.type,10) + '| ' + padL(String(lit.count),11) + ' | ' + lines + '\\n';
+  }
+  r += '\\n' + SEP2 + '\\n\\n';
+
+  // ── Section 5
+  r += SEP + '\\n' + SEP + '\\n';
+  r += '5. TOKEN SUMMARY STATISTICS\\n';
+  r += SEP + '\\n\\n';
+
+  r += \`Total Tokens: \${totalTokens}\\n\`;
+  r += \`Unique Token Types: \${uniqueTypes}\\n\`;
+  r += \`Total Lines with Code: \${linesWithCode}\\n\`;
+  r += \`Empty/Ignored Lines: \${emptyIgnored}\\n\\n\`;
+  r += \`Most Frequent Token: \${mostFreq.type} (\${mostFreq.count} occurrences, \${((mostFreq.count/totalTokens)*100).toFixed(2)}%)\\n\`;
+  r += \`Least Frequent Token: \${leastFreq.type} (\${leastFreq.count} occurrence\${leastFreq.count!==1?'s':''}, \${((leastFreq.count/totalTokens)*100).toFixed(2)}%)\\n\\n\`;
+  r += \`Average Tokens per Line: \${avgPerLine}\\n\`;
+  r += \`Maximum Tokens in a Single Line: \${maxLine.count} (Line \${maxLine.line})\\n\`;
+  r += \`Minimum Tokens in a Single Line: \${minLine.count} (Line \${minLine.line})\\n\`;
+  r += '\\n' + SEP + '\\n' + SEP + '\\n';
+
+  // ── Section 6
+  r += '6. TOKEN CATEGORY BREAKDOWN\\n';
+  r += SEP + '\\n\\n';
+
+  r += padR('Category',18) + '| ' + padR('Total',8) + '| Percentage\\n';
+  r += SEP2.slice(0,18) + '|' + SEP2.slice(0,9) + '|' + SEP2.slice(0,14) + '\\n';
+  const allCats = ['KEYWORD','IDENTIFIER','LITERAL','OPERATOR','SEPARATOR','COMMENT'];
+  for (const cat of allCats) {
+    const cnt = catMap[cat] || 0;
+    const pct = totalTokens ? ((cnt/totalTokens)*100).toFixed(2) + '%' : '0.00%';
+    r += padR(cat,18) + '| ' + padL(String(cnt),7) + ' | ' + pct + '\\n';
+  }
+
+  r += '\\n' + SEP + '\\n';
+  r += 'END OF REPORT\\n';
+  r += SEP + '\\n';
+
+  return r;
+}
+
+function centerText(text, width) {
+  const pad = Math.max(0, Math.floor((width - text.length) / 2));
+  return ' '.repeat(pad) + text;
+}
+function padR(s, n) { return String(s).slice(0,n).padEnd(n); }
+function padL(s, n) { return String(s).slice(0,n).padStart(n); }
+
+// ═══════════════════════════════════════════════════════════════
+//  UI LOGIC
+// ═══════════════════════════════════════════════════════════════
+
+let currentStats = null;
+let currentRaw = '';
+let currentView = 'visual';
+
+function analyzeCode() {
+  const code = document.getElementById('codeInput').value.trim();
+  if (!code) {
+    showError('No code to analyze. Please paste W++ code or upload a .wpp file.');
+    return;
+  }
+
+  const content = document.getElementById('reportContent');
+  content.innerHTML = '<div class="analyzing"><div class="spinner"></div> Tokenizing W++ source code...</div>';
+
+  // Small delay for UX
+  setTimeout(() => {
+    try {
+      const tokens = tokenize(code);
+      const totalLines = code.split('\\n').length;
+      const fname = document.getElementById('filenameText').textContent || 'source.wpp';
+
+      currentStats = generateStats(tokens, totalLines, fname);
+      currentRaw = buildRawReport(currentStats);
+
+      document.getElementById('reportTabs').style.display = 'flex';
+
+      if (currentView === 'raw') {
+        renderRaw();
+      } else {
+        renderVisual();
+      }
+    } catch(e) {
+      showError('Error during analysis: ' + e.message);
+    }
+  }, 100);
+}
+
+function renderVisual() {
+  currentView = 'visual';
+  document.getElementById('reportContent').innerHTML = buildVisualReport(currentStats);
+}
+
+function renderRaw() {
+  currentView = 'raw';
+  document.getElementById('reportContent').innerHTML = \`
+    <div class="report-section">
+      <div class="section-title">Raw Text Report</div>
+      <div class="raw-report">\${escapeHtml(currentRaw)}</div>
+      <div class="download-bar" style="margin-top:12px;">
+        <button class="btn-download" onclick="downloadReport()">⬇ Download .txt Report</button>
+        <button class="btn-download" onclick="copyRaw()">📋 Copy to Clipboard</button>
+      </div>
+    </div>\`;
+}
+
+function switchView(view, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (!currentStats) return;
+  if (view === 'visual') renderVisual();
+  else renderRaw();
+}
+
+function showError(msg) {
+  document.getElementById('reportContent').innerHTML = \`<div class="error-msg">⚠ \${msg}</div>\`;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function downloadReport() {
+  if (!currentRaw) return;
+  const blob = new Blob([currentRaw], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'wpp_token_report.txt';
+  a.click();
+}
+
+function copyRaw() {
+  navigator.clipboard.writeText(currentRaw).then(() => {
+    const btn = event.target;
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = '📋 Copy to Clipboard', 2000);
+  });
+}
+
+function clearAll() {
+  document.getElementById('codeInput').value = '';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('filenameDisplay').classList.remove('show');
+  document.getElementById('filenameText').textContent = '';
+  document.getElementById('reportTabs').style.display = 'none';
+  currentStats = null; currentRaw = ''; currentView = 'visual';
+  document.getElementById('reportContent').innerHTML = \`
+    <div class="welcome-state">
+      <div class="big-icon">⚙️</div>
+      <h3>Ready to Analyze</h3>
+      <p>Upload a <code style="color:var(--green)">.wpp</code> file or paste W++ source code, then click <strong>Analyze</strong>.</p>
+    </div>\`;
+}
+
+// ─── FILE UPLOAD ─────────────────────────────────────────────
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    document.getElementById('codeInput').value = ev.target.result;
+    document.getElementById('filenameText').textContent = file.name;
+    document.getElementById('filenameDisplay').classList.add('show');
+  };
+  reader.readAsText(file);
+});
+
+// ─── DRAG & DROP ─────────────────────────────────────────────
+
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'); });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('codeInput').value = ev.target.result;
+    document.getElementById('filenameText').textContent = file.name;
+    document.getElementById('filenameDisplay').classList.add('show');
+  };
+  reader.readAsText(file);
+});
+
+// ─── LOAD SAMPLE ──────────────────────────────────────────────
+
+function loadSample() {
+  const sample = \`// W++ Token Analyzer Test Program
+// This program demonstrates all token types
+int main() {
+    int age = 25;
+    float temperature = 36.6;
+    double pi = 3.14159265359;
+    char grade = 'A';
+    string name = "John Doe";
+    int x = 10, y = 20, z = 30;
+    float a = 1.5, b = 2.5, c = 3.5;
+    int sum = x + y + z;
+    float product = a * b * c;
+    double division = pi / 2.0;
+    int remainder = 100 % 7;
+    if (age >= 18 && age <= 60) {
+        print "Adult age range";
+        string status = "Working";
+    } else if (age > 60) {
+        print "Senior citizen";
+        string status = "Retired";
+    } else {
+        print "Minor";
+        string status = "Student";
+    }
+    int counter = 0;
+    while (counter < 10) {
+        counter = counter + 1;
+        print "Counter value: ";
+        print counter;
+    }
+    for (int i = 0; i < 5; i = i + 1) {
+        print "Iteration: ";
+        print i;
+    }
+    bool flag = true;
+    bool result = (x > y) && (a < b) || !flag;
+    char newline = '\\\\n';
+    char tab = '\\\\t';
+    string greeting = "Hello, " + name + "!";
+    string path = "C:\\\\\\\\Program Files\\\\\\\\W++";
+    return 0;
+}\`;
+
+  document.getElementById('codeInput').value = sample;
+  document.getElementById('filenameText').textContent = 'test_program.wpp';
+  document.getElementById('filenameDisplay').classList.add('show');
+}
+
+// ─── KEYBOARD SHORTCUT ─────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); analyzeCode(); }
+});
+</script>
+</body>
+</html>

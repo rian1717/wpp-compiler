@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W++ Token Analyzer — Home</title>
+<meta name="description" content="W++ Token Analyzer - Lexical Analysis Engine for CS-310 Compiler Construction">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="nav-logo" onclick="location.href='index.html'">
+    <div class="nav-logo-icon">W+</div>
+    <span>W++ Analyzer</span>
+  </div>
+  <div class="nav-breadcrumb">
+    <span class="active">Home</span>
+    <a href="upload.html">Upload</a>
+    <span class="arrow">→</span>
+    <a href="history.html">History</a>
+    <span class="arrow">→</span>
+    <a href="results.html">Results</a>
+  </div>
+  <div class="nav-right">
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
+  </div>
+</nav>
+
+<section class="hero">
+  <h1>W++ Token Analyzer</h1>
+  <p class="subtitle">Lexical Analysis Engine</p>
+  <div class="typewriter" id="typewriter"><span class="cursor"></span></div>
+
+  <div class="members-section">
+    <h3>Group Members</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Registration #</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color:var(--text-bright);font-weight:600;">Rai Rian Hassan Khan</td>
+          <td>23-CS-128</td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-bright);font-weight:600;">Sameer Abrar</td>
+          <td>23-CS-117</td>
+        </tr>
+        <tr>
+          <td style="color:var(--text-bright);font-weight:600;">Zakwan Ureed Mustafa</td>
+          <td>23-CS-100</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="display:flex;gap:16px;justify-content:center;margin-top:24px;flex-wrap:wrap;animation:fadeIn 1s ease;">
+    <a href="workspace.html?mode=scanner" class="btn btn-primary btn-lg btn-pulse" id="scannerBtn" style="min-width:220px;font-family:var(--sans);font-weight:700;">📂 Scanner Mode</a>
+    <a href="workspace.html?mode=parser" class="btn btn-blue btn-lg btn-pulse" id="parserBtn" style="min-width:220px;font-family:var(--sans);font-weight:700;box-shadow:0 0 20px rgba(64,196,255,0.25);">⚙️ Parser Mode</a>
+  </div>
+</section>
+
+<footer class="footer">Compiler Construction CS-310 | Spring 2026</footer>
+
+<script>
+// ─── Typewriter effect ───
+const lines = [
+  '> Scanning tokens...',
+  '> Building symbol table...',
+  '> Ready.'
+];
+const el = document.getElementById('typewriter');
+let li = 0, ci = 0;
+function typeChar() {
+  if (li >= lines.length) { el.innerHTML = lines[lines.length-1] + '<span class="cursor"></span>'; return; }
+  const txt = lines.slice(0, li).join('  ') + (li > 0 ? '  ' : '') + lines[li].slice(0, ci + 1);
+  el.innerHTML = txt + '<span class="cursor"></span>';
+  ci++;
+  if (ci >= lines[li].length) { li++; ci = 0; setTimeout(typeChar, 400); }
+  else { setTimeout(typeChar, 40); }
+}
+setTimeout(typeChar, 600);
+
+// ─── Theme toggle ───
+const toggle = document.getElementById('themeToggle');
+if (localStorage.getItem('wpp_theme') === 'light') { document.body.classList.add('light'); toggle.textContent = '☀'; }
+toggle.addEventListener('click', () => {
+  document.body.classList.toggle('light');
+  const isLight = document.body.classList.contains('light');
+  toggle.textContent = isLight ? '☀' : '🌙';
+  localStorage.setItem('wpp_theme', isLight ? 'light' : 'dark');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,645 @@
+// ═══════════════════════════════════════════════════════════════
+//  W++ SYNTAX PARSER ENGINE  —  CS-310 Compiler Construction
+// ═══════════════════════════════════════════════════════════════
+
+class WPlusParser {
+  constructor(tokens, sourceCode) {
+    // Filter comments but keep lexical errors to display them
+    this.tokens = tokens.filter(t => t.type !== 'COMMENT');
+    this.sourceCode = sourceCode;
+    this.idx = 0;
+    this.errors = [];
+    this.ast = null;
+    this.lines = sourceCode.split('\n');
+    
+    // Add existing lexical errors from tokenizer
+    for (const t of tokens) {
+      if (t.type === 'LEXICAL_ERROR') {
+        this.addError(t.line, t.col, t.errorMsg || `Unexpected token '${t.value}'`, 'Lexical Error');
+      }
+    }
+  }
+
+  peek(offset = 0) {
+    if (this.idx + offset >= this.tokens.length) return null;
+    return this.tokens[this.idx + offset];
+  }
+
+  isAtEnd() {
+    return this.idx >= this.tokens.length;
+  }
+
+  check(type) {
+    if (this.isAtEnd()) return false;
+    return this.peek().type === type;
+  }
+
+  match(...types) {
+    for (const type of types) {
+      if (this.check(type)) {
+        this.idx++;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  previous() {
+    return this.tokens[this.idx - 1];
+  }
+
+  consume(type, message) {
+    if (this.check(type)) {
+      this.idx++;
+      return this.previous();
+    }
+    
+    const token = this.peek();
+    const line = token ? token.line : this.lines.length;
+    const col = token ? token.col : 1;
+    this.addError(line, col, message, 'Syntax Error');
+    return null;
+  }
+
+  addError(line, col, msg, type = 'Syntax Error') {
+    // Avoid duplicate errors on the same line and column
+    if (this.errors.some(e => e.line === line && e.col === col && e.msg === msg)) {
+      return;
+    }
+    
+    // Generate caret pointing snippet
+    let snippet = '';
+    const lineIndex = line - 1;
+    if (lineIndex >= 0 && lineIndex < this.lines.length) {
+      const origLine = this.lines[lineIndex].replace(/\r/g, '');
+      const pad = ' '.repeat(Math.max(0, col - 1));
+      snippet = `Line ${line}:\n  ${origLine}\n  ${pad}^`;
+    }
+
+    this.errors.push({ line, col, msg, type, snippet });
+  }
+
+  // ─── ERROR RECOVERY (SYNCHRONIZATION) ───
+  synchronize() {
+    if (this.isAtEnd()) return;
+
+    // Consume the current erroneous token
+    this.idx++;
+
+    while (!this.isAtEnd()) {
+      // Synchronize at statement boundary (semicolon)
+      if (this.previous().type === 'SEPARATOR_SEMICOLON') return;
+
+      // Or when we hit a keyword that begins a statement
+      switch (this.peek().type) {
+        case 'KEYWORD_INT':
+        case 'KEYWORD_FLOAT':
+        case 'KEYWORD_DOUBLE':
+        case 'KEYWORD_CHAR':
+        case 'KEYWORD_STRING':
+        case 'KEYWORD_BOOL':
+        case 'KEYWORD_VOID':
+        case 'KEYWORD_LONG':
+        case 'KEYWORD_IF':
+        case 'KEYWORD_WHILE':
+        case 'KEYWORD_FOR':
+        case 'KEYWORD_DO':
+        case 'KEYWORD_RETURN':
+        case 'KEYWORD_PRINT':
+        case 'KEYWORD_READ':
+        case 'SEPARATOR_LBRACE':
+        case 'SEPARATOR_RBRACE':
+          return;
+      }
+      this.idx++;
+    }
+  }
+
+  // ─── GRAMMAR RULES ───
+
+  // Program ::= DeclarationList
+  parse() {
+    const statements = [];
+    let hasMain = false;
+
+    while (!this.isAtEnd()) {
+      try {
+        const stmt = this.parseTopLevel();
+        if (stmt) {
+          statements.push(stmt);
+          if (stmt.type === 'MainFunction') {
+            hasMain = true;
+          }
+        }
+      } catch (e) {
+        this.synchronize();
+      }
+    }
+
+    if (!hasMain && this.errors.filter(e => e.msg.includes('main function')).length === 0) {
+      this.addError(1, 1, "Missing main function declaration 'int main() { ... }'", 'Syntax Error');
+    }
+
+    this.ast = {
+      type: 'Program',
+      body: statements,
+      line: statements[0] ? statements[0].line : 1
+    };
+    return this.ast;
+  }
+
+  // Parses function declaration (specifically main) or global variables
+  parseTopLevel() {
+    const startToken = this.peek();
+    if (!startToken) return null;
+
+    // Check for "int main()" signature
+    if (this.check('KEYWORD_INT') && this.peek(1) && this.peek(1).type === 'KEYWORD_MAIN') {
+      const typeTok = this.consume('KEYWORD_INT', "Expected type 'int' for main");
+      const mainTok = this.consume('KEYWORD_MAIN', "Expected name 'main' for main function");
+      
+      this.consume('SEPARATOR_LPAREN', "Expected '(' after main");
+      this.consume('SEPARATOR_RPAREN', "Expected ')' after 'main('");
+      
+      const body = this.parseBlockStatement("main function");
+      return {
+        type: 'MainFunction',
+        returnType: typeTok.value,
+        name: mainTok.value,
+        body: body,
+        line: startToken.line
+      };
+    }
+
+    // Otherwise, parse standard statements (declarations, if, while, for, print)
+    return this.parseStatement();
+  }
+
+  // Statement ::= Declaration | Assignment | IfStatement | WhileStatement | ForStatement | DoWhileStatement | Print | Return | Block
+  parseStatement() {
+    const token = this.peek();
+    if (!token) return null;
+
+    // Block Statement
+    if (this.check('SEPARATOR_LBRACE')) {
+      return this.parseBlockStatement();
+    }
+
+    // If Statement
+    if (this.match('KEYWORD_IF')) {
+      return this.parseIfStatement();
+    }
+
+    // While Statement
+    if (this.match('KEYWORD_WHILE')) {
+      return this.parseWhileStatement();
+    }
+
+    // For Statement
+    if (this.match('KEYWORD_FOR')) {
+      return this.parseForStatement();
+    }
+
+    // Do-While Statement
+    if (this.match('KEYWORD_DO')) {
+      return this.parseDoWhileStatement();
+    }
+
+    // Return Statement
+    if (this.match('KEYWORD_RETURN')) {
+      return this.parseReturnStatement();
+    }
+
+    // Print Statement
+    if (this.match('KEYWORD_PRINT')) {
+      return this.parsePrintStatement();
+    }
+
+    // Read Statement
+    if (this.match('KEYWORD_READ')) {
+      return this.parseReadStatement();
+    }
+
+    // Declaration statement (starts with a type)
+    if (this.isTypeKeyword(token.type)) {
+      return this.parseDeclaration();
+    }
+
+    // Assignment or standalone expression
+    return this.parseExpressionStatement();
+  }
+
+  isTypeKeyword(type) {
+    return [
+      'KEYWORD_INT', 'KEYWORD_FLOAT', 'KEYWORD_DOUBLE',
+      'KEYWORD_CHAR', 'KEYWORD_STRING', 'KEYWORD_BOOL',
+      'KEYWORD_VOID', 'KEYWORD_LONG'
+    ].includes(type);
+  }
+
+  // BlockStatement ::= '{' statement* '}'
+  parseBlockStatement(context = 'block') {
+    const lbrace = this.consume('SEPARATOR_LBRACE', `Expected '{' to start ${context}`);
+    const statements = [];
+    
+    while (!this.check('SEPARATOR_RBRACE') && !this.isAtEnd()) {
+      try {
+        const stmt = this.parseStatement();
+        if (stmt) statements.push(stmt);
+      } catch (e) {
+        this.synchronize();
+      }
+    }
+    
+    this.consume('SEPARATOR_RBRACE', `Expected '}' to close ${context}`);
+    return {
+      type: 'Block',
+      statements: statements,
+      line: lbrace ? lbrace.line : (statements[0] ? statements[0].line : 1)
+    };
+  }
+
+  // Declaration ::= Type VarDeclList ';'
+  // VarDeclList ::= VarDecl (',' VarDecl)*
+  // VarDecl ::= identifier ['=' Expression]
+  parseDeclaration() {
+    const typeToken = this.consume(this.peek().type, "Expected type keyword");
+    const decls = [];
+
+    do {
+      const idToken = this.consume('IDENTIFIER', "Expected variable identifier");
+      let init = null;
+
+      if (this.match('OPERATOR_ASSIGN')) {
+        init = this.parseExpression();
+      }
+
+      decls.push({
+        type: 'VariableDeclarator',
+        id: idToken ? idToken.value : '?',
+        init: init,
+        line: idToken ? idToken.line : typeToken.line,
+        col: idToken ? idToken.col : typeToken.col
+      });
+    } while (this.match('SEPARATOR_COMMA'));
+
+    this.consume('SEPARATOR_SEMICOLON', "Expected ';' after variable declaration");
+
+    return {
+      type: 'VariableDeclaration',
+      varType: typeToken.value,
+      declarations: decls,
+      line: typeToken.line
+    };
+  }
+
+  // IfStatement ::= 'if' '(' Expression ')' Statement [ 'else' Statement ]
+  parseIfStatement() {
+    const line = this.previous().line;
+    this.consume('SEPARATOR_LPAREN', "Expected '(' after 'if'");
+    const condition = this.parseExpression();
+    this.consume('SEPARATOR_RPAREN', "Expected ')' after 'if' condition");
+    
+    const consequent = this.parseStatement();
+    let alternate = null;
+
+    if (this.match('KEYWORD_ELSE')) {
+      alternate = this.parseStatement();
+    }
+
+    return {
+      type: 'IfStatement',
+      condition,
+      consequent,
+      alternate,
+      line
+    };
+  }
+
+  // WhileStatement ::= 'while' '(' Expression ')' Statement
+  parseWhileStatement() {
+    const line = this.previous().line;
+    this.consume('SEPARATOR_LPAREN', "Expected '(' after 'while'");
+    const condition = this.parseExpression();
+    this.consume('SEPARATOR_RPAREN', "Expected ')' after 'while' condition");
+    const body = this.parseStatement();
+
+    return {
+      type: 'WhileStatement',
+      condition,
+      body,
+      line
+    };
+  }
+
+  // ForStatement ::= 'for' '(' [Declaration | Expression] ';' [Expression] ';' [Expression] ')' Statement
+  parseForStatement() {
+    const line = this.previous().line;
+    this.consume('SEPARATOR_LPAREN', "Expected '(' after 'for'");
+    
+    let init = null;
+    if (!this.check('SEPARATOR_SEMICOLON')) {
+      if (this.isTypeKeyword(this.peek().type)) {
+        init = this.parseDeclaration();
+      } else {
+        init = this.parseExpressionStatement();
+      }
+    } else {
+      this.consume('SEPARATOR_SEMICOLON', "Expected ';' after for loop init");
+    }
+
+    let condition = null;
+    if (!this.check('SEPARATOR_SEMICOLON')) {
+      condition = this.parseExpression();
+    }
+    this.consume('SEPARATOR_SEMICOLON', "Expected ';' after for loop condition");
+
+    let update = null;
+    if (!this.check('SEPARATOR_RPAREN')) {
+      update = this.parseExpression();
+    }
+    this.consume('SEPARATOR_RPAREN', "Expected ')' after for loop update");
+
+    const body = this.parseStatement();
+
+    return {
+      type: 'ForStatement',
+      init,
+      condition,
+      update,
+      body,
+      line
+    };
+  }
+
+  // DoWhileStatement ::= 'do' Statement 'while' '(' Expression ')' ';'
+  parseDoWhileStatement() {
+    const line = this.previous().line;
+    const body = this.parseStatement();
+    this.consume('KEYWORD_WHILE', "Expected 'while' after do body");
+    this.consume('SEPARATOR_LPAREN', "Expected '(' after 'while'");
+    const condition = this.parseExpression();
+    this.consume('SEPARATOR_RPAREN', "Expected ')' after while condition");
+    this.consume('SEPARATOR_SEMICOLON', "Expected ';' after do-while condition");
+
+    return {
+      type: 'DoWhileStatement',
+      body,
+      condition,
+      line
+    };
+  }
+
+  // ReturnStatement ::= 'return' [Expression] ';'
+  parseReturnStatement() {
+    const line = this.previous().line;
+    let argument = null;
+    if (!this.check('SEPARATOR_SEMICOLON')) {
+      argument = this.parseExpression();
+    }
+    this.consume('SEPARATOR_SEMICOLON', "Expected ';' after return value");
+    return {
+      type: 'ReturnStatement',
+      argument,
+      line
+    };
+  }
+
+  // PrintStatement ::= 'print' Expression ';'
+  parsePrintStatement() {
+    const line = this.previous().line;
+    const argument = this.parseExpression();
+    this.consume('SEPARATOR_SEMICOLON', "Expected ';' after print expression");
+    return {
+      type: 'PrintStatement',
+      argument,
+      line
+    };
+  }
+
+  // ReadStatement ::= 'read' identifier ';'
+  parseReadStatement() {
+    const line = this.previous().line;
+    const identifier = this.consume('IDENTIFIER', "Expected identifier to read into");
+    this.consume('SEPARATOR_SEMICOLON', "Expected ';' after read target");
+    return {
+      type: 'ReadStatement',
+      identifier: identifier ? identifier.value : '?',
+      line
+    };
+  }
+
+  // ExpressionStatement ::= Expression ';'
+  parseExpressionStatement() {
+    const expr = this.parseExpression();
+    this.consume('SEPARATOR_SEMICOLON', "Expected ';' after expression");
+    return {
+      type: 'ExpressionStatement',
+      expression: expr,
+      line: expr.line
+    };
+  }
+
+  // ─── EXPRESSION PARSER (PRATT / PRECEDENCE LEVELS) ───
+
+  parseExpression() {
+    return this.assignment();
+  }
+
+  // Assignment logic
+  assignment() {
+    const expr = this.logicalOr();
+
+    if (this.match('OPERATOR_ASSIGN')) {
+      const equals = this.previous();
+      const value = this.assignment();
+
+      if (expr.type === 'Identifier') {
+        return {
+          type: 'AssignmentExpression',
+          left: expr,
+          operator: '=',
+          right: value,
+          line: equals.line
+        };
+      }
+      this.addError(equals.line, equals.col, "Invalid assignment target (L-Value must be a variable)", 'Syntax Error');
+    }
+
+    return expr;
+  }
+
+  logicalOr() {
+    let expr = this.logicalAnd();
+    while (this.match('OPERATOR_OR')) {
+      const op = this.previous();
+      const right = this.logicalAnd();
+      expr = { type: 'LogicalExpression', operator: op.value, left: expr, right, line: op.line };
+    }
+    return expr;
+  }
+
+  logicalAnd() {
+    let expr = this.equality();
+    while (this.match('OPERATOR_AND')) {
+      const op = this.previous();
+      const right = this.equality();
+      expr = { type: 'LogicalExpression', operator: op.value, left: expr, right, line: op.line };
+    }
+    return expr;
+  }
+
+  equality() {
+    let expr = this.comparison();
+    while (this.match('OPERATOR_EQ', 'OPERATOR_NEQ')) {
+      const op = this.previous();
+      const right = this.comparison();
+      expr = { type: 'BinaryExpression', operator: op.value, left: expr, right, line: op.line };
+    }
+    return expr;
+  }
+
+  comparison() {
+    let expr = this.term();
+    while (this.match('OPERATOR_LT', 'OPERATOR_GT', 'OPERATOR_LTE', 'OPERATOR_GTE')) {
+      const op = this.previous();
+      const right = this.term();
+      expr = { type: 'BinaryExpression', operator: op.value, left: expr, right, line: op.line };
+    }
+    return expr;
+  }
+
+  term() {
+    let expr = this.factor();
+    while (this.match('OPERATOR_PLUS', 'OPERATOR_MINUS')) {
+      const op = this.previous();
+      const right = this.factor();
+      expr = { type: 'BinaryExpression', operator: op.value, left: expr, right, line: op.line };
+    }
+    return expr;
+  }
+
+  factor() {
+    let expr = this.unary();
+    while (this.match('OPERATOR_MULT', 'OPERATOR_DIV', 'OPERATOR_MOD')) {
+      const op = this.previous();
+      const right = this.unary();
+      expr = { type: 'BinaryExpression', operator: op.value, left: expr, right, line: op.line };
+    }
+    return expr;
+  }
+
+  unary() {
+    // Prefix increments and logical negations
+    if (this.match('OPERATOR_NOT', 'OPERATOR_MINUS', 'OPERATOR_PLUS', 'OPERATOR_INC', 'OPERATOR_DEC')) {
+      const op = this.previous();
+      const argument = this.unary();
+      return {
+        type: 'UnaryExpression',
+        operator: op.value,
+        prefix: true,
+        argument,
+        line: op.line
+      };
+    }
+
+    return this.postfix();
+  }
+
+  postfix() {
+    let expr = this.primary();
+
+    // Postfix increment and decrement
+    if (this.match('OPERATOR_INC', 'OPERATOR_DEC')) {
+      const op = this.previous();
+      if (expr.type !== 'Identifier') {
+        this.addError(op.line, op.col, `Operand of '${op.value}' must be a variable`, 'Syntax Error');
+      }
+      return {
+        type: 'UnaryExpression',
+        operator: op.value,
+        prefix: false,
+        argument: expr,
+        line: op.line
+      };
+    }
+
+    return expr;
+  }
+
+  primary() {
+    if (this.match('LITERAL_INTEGER', 'LITERAL_FLOAT')) {
+      const prev = this.previous();
+      return {
+        type: 'Literal',
+        valueType: prev.type.replace('LITERAL_', ''),
+        value: Number(prev.value),
+        raw: prev.value,
+        line: prev.line
+      };
+    }
+
+    if (this.match('LITERAL_STRING', 'LITERAL_CHAR')) {
+      const prev = this.previous();
+      // Remove enclosing quotes
+      let cleanVal = prev.value;
+      if (prev.type === 'LITERAL_STRING') {
+        cleanVal = cleanVal.replace(/^"|"$/g, '');
+      } else {
+        cleanVal = cleanVal.replace(/^'|'$/g, '');
+      }
+      return {
+        type: 'Literal',
+        valueType: prev.type.replace('LITERAL_', ''),
+        value: cleanVal,
+        raw: prev.value,
+        line: prev.line
+      };
+    }
+
+    if (this.match('KEYWORD_TRUE', 'KEYWORD_FALSE')) {
+      const prev = this.previous();
+      return {
+        type: 'Literal',
+        valueType: 'BOOL',
+        value: prev.value === 'true',
+        raw: prev.value,
+        line: prev.line
+      };
+    }
+
+    if (this.match('IDENTIFIER')) {
+      const prev = this.previous();
+      return {
+        type: 'Identifier',
+        value: prev.value,
+        line: prev.line,
+        col: prev.col
+      };
+    }
+
+    if (this.match('SEPARATOR_LPAREN')) {
+      const line = this.previous().line;
+      const expr = this.parseExpression();
+      this.consume('SEPARATOR_RPAREN', "Expected ')' after expression");
+      return {
+        type: 'ParenthesizedExpression',
+        expression: expr,
+        line
+      };
+    }
+
+    // Error recovery for expression primary fallback
+    const tok = this.peek();
+    const l = tok ? tok.line : this.lines.length;
+    const c = tok ? tok.col : 1;
+    this.addError(l, c, tok ? `Unexpected token '${tok.value}' in expression` : "Expected expression at end of statement", 'Syntax Error');
+    this.idx++; // Skip this token to prevent infinite loop
+    return { type: 'ErrorNode', line: l };
+  }
+}
+
+// Export for browser use
+if (typeof window !== 'undefined') {
+  window.WPlusParser = WPlusParser;
+}

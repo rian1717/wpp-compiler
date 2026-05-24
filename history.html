@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>W++ Token Analyzer — History</title>
+<meta name="description" content="View past analysis records for the W++ Token Analyzer">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="nav-logo" onclick="location.href='index.html'">
+    <div class="nav-logo-icon">W+</div>
+    <span>W++ Analyzer</span>
+  </div>
+  <div class="nav-breadcrumb">
+    <a href="index.html">Home</a>
+    <span class="arrow">→</span>
+    <a href="upload.html">Upload</a>
+    <span class="arrow">→</span>
+    <span class="active">History</span>
+    <span class="arrow">→</span>
+    <a href="results.html">Results</a>
+  </div>
+  <div class="nav-right">
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
+  </div>
+</nav>
+
+<div style="max-width:900px;margin:40px auto;padding:0 24px;">
+  <div class="section-head" style="margin-bottom:20px;">
+    <div class="section-title" style="font-size:18px;">Analysis History</div>
+    <div class="section-meta">
+      <button class="btn btn-secondary btn-sm" onclick="clearHistory()" style="border-color:rgba(255,82,82,0.4);color:var(--red);">🗑 Clear All History</button>
+    </div>
+  </div>
+  <div class="section-desc" style="margin-bottom:24px;">View, restore, or delete your past W++ token analysis runs. We save your last 50 analyses.</div>
+
+  <div id="historyContainer">
+    <table class="data-table" id="historyTable">
+      <thead>
+        <tr>
+          <th>Date & Time</th>
+          <th>Filename</th>
+          <th style="text-align:right;">Lines</th>
+          <th style="text-align:right;">Tokens</th>
+          <th style="text-align:center;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="historyBody">
+        <!-- History rows populated here -->
+      </tbody>
+    </table>
+    <div id="emptyMsg" style="display:none; text-align:center; padding: 40px; color: var(--text-dim); background: rgba(15,30,48,0.5); border-radius: var(--radius); border: 1px dashed var(--border);">
+      <div style="font-size:32px; margin-bottom:12px;">📭</div>
+      No analysis history found. Run an analysis on the Upload page to see it here!
+    </div>
+  </div>
+</div>
+
+<footer class="footer">Compiler Construction CS-310 | Spring 2026</footer>
+
+<script src="tokenizer.js"></script>
+<script>
+function renderHistory() {
+  const history = JSON.parse(localStorage.getItem('wpp_history') || '[]');
+  const tbody = document.getElementById('historyBody');
+  const emptyMsg = document.getElementById('emptyMsg');
+  const table = document.getElementById('historyTable');
+
+  if (history.length === 0) {
+    table.style.display = 'none';
+    emptyMsg.style.display = 'block';
+    return;
+  }
+
+  table.style.display = 'table';
+  emptyMsg.style.display = 'none';
+  tbody.innerHTML = '';
+
+  history.forEach((entry, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="color:var(--text-dim);font-size:11px;">${entry.date}</td>
+      <td style="color:var(--text-bright);font-weight:600;"><span class="file-name-badge" style="display:inline-block;padding:2px 8px;font-size:10px;">📄 ${escapeHtml(entry.filename)}</span></td>
+      <td class="qty-cell">${entry.totalLines}</td>
+      <td class="qty-cell" style="color:var(--green);">${entry.totalTokens}</td>
+      <td style="text-align:center; display:flex; gap:6px; justify-content:center;">
+        <button class="btn btn-primary btn-sm" onclick="loadRecord(${entry.id})" style="padding:4px 10px; font-size:10px;">▶ View Report</button>
+        <button class="btn btn-secondary btn-sm" onclick="deleteRecord(${entry.id})" style="padding:4px 10px; font-size:10px;">🗑</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function loadRecord(id) {
+  const history = JSON.parse(localStorage.getItem('wpp_history') || '[]');
+  const record = history.find(r => r.id === id);
+  if (record) {
+    const tokens = tokenize(record.code);
+    const stats = generateAllStats(tokens, record.code, record.filename);
+    
+    // Save to current active slots
+    localStorage.setItem('wpp_tokens', JSON.stringify(tokens));
+    localStorage.setItem('wpp_stats', JSON.stringify(stats));
+    localStorage.setItem('wpp_source', record.code);
+    localStorage.setItem('wpp_filename', record.filename);
+    
+    // Also push to history again to make it the most recent active one
+    saveToHistory(record.filename, record.code, stats);
+    
+    window.location.href = 'results.html';
+  }
+}
+
+function deleteRecord(id) {
+  let history = JSON.parse(localStorage.getItem('wpp_history') || '[]');
+  history = history.filter(r => r.id !== id);
+  localStorage.setItem('wpp_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function clearHistory() {
+  if(confirm("Are you sure you want to clear all history? This cannot be undone.")) {
+    localStorage.removeItem('wpp_history');
+    renderHistory();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', renderHistory);
+
+// ─── Theme toggle ───
+const toggle = document.getElementById('themeToggle');
+if (localStorage.getItem('wpp_theme') === 'light') { document.body.classList.add('light'); toggle.textContent = '☀'; }
+toggle.addEventListener('click', () => {
+  document.body.classList.toggle('light');
+  const isLight = document.body.classList.contains('light');
+  toggle.textContent = isLight ? '☀' : '🌙';
+  localStorage.setItem('wpp_theme', isLight ? 'light' : 'dark');
+});
+</script>
+</body>
+</html>
