@@ -5,8 +5,24 @@
 class WPlusOptimizer {
   constructor(ast) {
     // Clone AST to avoid altering original structure
-    this.ast = JSON.parse(JSON.stringify(ast));
+    this.ast = this.deepClone(ast);
     this.logs = []; // List of optimizations performed
+  }
+
+  deepClone(obj) {
+    if (obj === null || typeof obj !== 'object') {
+      return obj;
+    }
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.deepClone(item));
+    }
+    const cloned = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        cloned[key] = this.deepClone(obj[key]);
+      }
+    }
+    return cloned;
   }
 
   optimize() {
@@ -156,6 +172,33 @@ class WPlusOptimizer {
         node.left = this.visit(node.left);
         node.right = this.visit(node.right);
 
+        // Algebraic Simplification: x % 1 -> 0
+        if (node.operator === '%') {
+          if (node.right.type === 'Literal' && node.right.value === 1) {
+            this.log(node.line, `Algebraic Simplification: Simplified expression to '0' (modulo by 1)`);
+            return {
+              type: 'Literal',
+              valueType: 'INTEGER',
+              value: 0,
+              raw: '0',
+              line: node.line
+            };
+          }
+          // Algebraic Simplification: 0 % x -> 0 (where x != 0)
+          if (node.left.type === 'Literal' && node.left.value === 0) {
+            if (node.right.type !== 'Literal' || node.right.value !== 0) {
+              this.log(node.line, `Algebraic Simplification: Simplified expression to '0' (0 modulo anything)`);
+              return {
+                type: 'Literal',
+                valueType: 'INTEGER',
+                value: 0,
+                raw: '0',
+                line: node.line
+              };
+            }
+          }
+        }
+
         // Constant folding for numeric and boolean operations
         if (node.left.type === 'Literal' && node.right.type === 'Literal') {
           const lVal = node.left.value;
@@ -169,8 +212,16 @@ class WPlusOptimizer {
               case '+': res = lVal + rVal; resType = Number.isInteger(res) ? 'INTEGER' : 'FLOAT'; break;
               case '-': res = lVal - rVal; resType = Number.isInteger(res) ? 'INTEGER' : 'FLOAT'; break;
               case '*': res = lVal * rVal; resType = Number.isInteger(res) ? 'INTEGER' : 'FLOAT'; break;
-              case '/': res = rVal !== 0 ? lVal / rVal : 0; resType = 'FLOAT'; break;
-              case '%': res = rVal !== 0 ? lVal % rVal : 0; resType = 'INTEGER'; break;
+              case '/': 
+                if (rVal === 0) return node; // Do not fold division by zero
+                res = lVal / rVal; 
+                resType = 'FLOAT'; 
+                break;
+              case '%': 
+                if (rVal === 0) return node; // Do not fold modulo by zero
+                res = lVal % rVal; 
+                resType = 'INTEGER'; 
+                break;
               case '==': res = lVal === rVal; resType = 'BOOL'; break;
               case '!=': res = lVal !== rVal; resType = 'BOOL'; break;
               case '<': res = lVal < rVal; resType = 'BOOL'; break;
