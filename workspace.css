@@ -63,6 +63,10 @@ body.light {
   box-sizing: border-box;
 }
 
+body, .left-pane, .right-pane, .panel-header, .navbar, .tab-btn, .btn, .editor-textarea, .editor-highlight, .console-box, .error-card, .data-table, td, th {
+  transition: background-color 0.3s ease, background 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
 body {
   background-color: var(--bg-color);
   color: var(--text-color);
