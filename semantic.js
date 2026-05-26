@@ -2,25 +2,47 @@
 //  W++ SEMANTIC ANALYZER  —  CS-310 Compiler Construction
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * Represents a single block scope level in the compiler's symbol table hierarchy.
+ */
 class Scope {
+  /**
+   * Creates an instance of Scope.
+   * @param {Scope|null} [parent=null] - The parent outer scope level.
+   * @param {string} [name='block'] - The descriptive name of this scope context.
+   */
   constructor(parent = null, name = 'block') {
     this.variables = {}; // name -> { type, line, initialized, value }
     this.parent = parent;
     this.name = name;
   }
 
+  /**
+   * Declares a variable inside the current scope.
+   * @param {string} name - The identifier of the variable.
+   * @param {string} type - The type of the variable (e.g. INT, FLOAT).
+   * @param {number} line - The line number where declared.
+   * @param {number} col - The column number where declared.
+   * @returns {boolean} True if successfully declared, false if already declared in this local scope.
+   */
   declare(name, type, line, col) {
     if (this.variables[name]) {
       return false; // Already declared in this scope
     }
-    this.variables[name] = { type: type.toUpperCase(), line, col, initialized: false, value: undefined };
+    this.variables[name] = { type: type.toUpperCase(), line, col, initialized: false, value: undefined, used: false };
     return true;
   }
 
+  /**
+   * Looks up a variable name recursively from the current scope up through parent scopes.
+   * @param {string} name - The identifier of the variable to look up.
+   * @returns {Object|null} Object containing variable metadata and scopeName, or null if not found.
+   */
   lookup(name) {
     let scope = this;
     while (scope !== null) {
       if (scope.variables[name]) {
+        scope.variables[name].used = true; // Mark variable as used/referenced
         return { variable: scope.variables[name], scopeName: scope.name };
       }
       scope = scope.parent;
@@ -29,6 +51,9 @@ class Scope {
   }
 }
 
+/**
+ * W++ Semantic Analyzer Engine - Implements scope checking and type compatibility checking.
+ */
 class WPlusSemantic {
   constructor(ast, sourceCode) {
     this.ast = ast;
@@ -54,6 +79,12 @@ class WPlusSemantic {
   analyze() {
     if (!this.ast) return { errors: this.errors, symbols: this.symbols };
     this.visit(this.ast);
+    // Finally, check unused variables in the top-level global scope
+    for (const [name, info] of Object.entries(this.currentScope.variables)) {
+      if (name !== 'main' && !info.used) {
+        this.addError(info.line, info.col || 1, `Variable '${name}' is declared but never used`, 'Semantic Warning');
+      }
+    }
     return { errors: this.errors, symbols: this.symbols };
   }
 
@@ -63,6 +94,11 @@ class WPlusSemantic {
   }
 
   exitScope() {
+    for (const [name, info] of Object.entries(this.currentScope.variables)) {
+      if (name !== 'main' && !info.used) {
+        this.addError(info.line, info.col || 1, `Variable '${name}' is declared but never used`, 'Semantic Warning');
+      }
+    }
     if (this.currentScope.parent) {
       this.currentScope = this.currentScope.parent;
     }
@@ -238,6 +274,14 @@ class WPlusSemantic {
         const op = node.operator;
 
         if (!leftType || !rightType) return null;
+
+        // division by zero check
+        if (op === '/' || op === '%') {
+          const divisorVal = this.getConstantValue(node.right);
+          if (divisorVal === 0) {
+            this.addError(node.line, 1, "Division or modulo by zero is undefined", "Semantic Error");
+          }
+        }
 
         // Operator check
         if (['+', '-', '*', '/', '%'].includes(op)) {
