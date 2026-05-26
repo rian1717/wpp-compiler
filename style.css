@@ -33,6 +33,9 @@ body.light .data-table tbody tr:hover{background:rgba(0,168,84,0.05)!important;b
 body.light .footer{border-top:1px solid rgba(0,0,0,0.05)!important;}
 *{margin:0;padding:0;box-sizing:border-box;}
 html{scroll-behavior:smooth;}
+body, .navbar, .card, .stat-card, .data-table, td, th, footer, button, .theme-toggle {
+  transition: background-color 0.3s ease, background 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
 body{background:radial-gradient(circle at 50% -20%, var(--bg-glow) 0%, var(--bg) 70%) fixed;color:var(--text);font-family:var(--mono);min-height:100vh;font-size:13px;display:flex;flex-direction:column;}
 a{color:var(--green);text-decoration:none;}
 
