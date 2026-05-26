@@ -2,7 +2,14 @@
 //  W++ INTERMEDIATE CODE GENERATOR  —  CS-310 Compiler Construction
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * W++ Intermediate Code Generator (ICG) - Generates Three-Address Code (TAC).
+ */
 class WPlusICG {
+  /**
+   * Creates an instance of WPlusICG.
+   * @param {Object} ast - The Abstract Syntax Tree (AST) node.
+   */
   constructor(ast) {
     this.ast = ast;
     this.instructions = [];
@@ -10,24 +17,42 @@ class WPlusICG {
     this.labelCount = 0;
   }
 
+  /**
+   * Generates a new unique temporary variable name.
+   * @returns {string} The temporary variable name (e.g. t0, t1).
+   */
   newTemp() {
     const t = `t${this.tempCount}`;
     this.tempCount++;
     return t;
   }
 
+  /**
+   * Generates a new unique conditional branch label.
+   * @returns {string} The branch label (e.g. L0, L1).
+   */
   newLabel() {
     const l = `L${this.labelCount}`;
     this.labelCount++;
     return l;
   }
 
+  /**
+   * Emits a Three-Address Code instruction to the buffer.
+   * @param {string} inst - The instruction string to record.
+   */
   emit(inst) {
     this.instructions.push(inst);
   }
 
+  /**
+   * Translates the loaded AST into the final list of Three-Address Code instructions.
+   * @returns {Array<string>} An array of TAC instruction strings.
+   */
   generate() {
-    if (!this.ast) return [];
+    if (!this.ast || typeof this.ast !== 'object' || !this.ast.type) {
+      return [];
+    }
     this.visit(this.ast);
     return this.instructions;
   }
